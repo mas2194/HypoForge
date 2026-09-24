@@ -1,6 +1,5 @@
 import {
   sequence,
-  selector,
   guard,
   optional,
   action,
@@ -39,7 +38,6 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
   };
 
   // Fast Track Subtree: Direct Implement -> Verify -> Compare -> Review
-  // If fast path fails at any point, Selector falls back cleanly to DeepController.
   const fastTrackSubtree = sequence("FastTrack Execution", [
     wrap(
       guard(
@@ -62,12 +60,12 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
     sequence("Autonomous Architecture Exploration Pipeline", [
       wrap(action("Inspect", inspectAction)),
       wrap(action("Triage", triageAction)),
-      wrap(
-        selector("Fast / Deep Execution Path", [
-          wrap(fastTrackSubtree),
-          wrap(deepPipelineNode),
-        ])
-      ),
+      wrap(action("Selected Execution Path", async (ctx) => {
+        if (ctx.triageDecision?.path === "FAST") {
+          return fastTrackSubtree.tick(ctx);
+        }
+        return deepPipelineNode.tick(ctx);
+      })),
       wrap(action("StageIntegration", stageIntegrationAction)),
       wrap(
         optional(

@@ -10,7 +10,7 @@ import {
   compareAction,
   cleanRoomReviewAction,
 } from "./actions.js";
-import { routeBacktrack, BacktrackTarget } from "./backtrack-router.js";
+import { BacktrackTarget } from "./backtrack-router.js";
 
 export type DeepPhase =
   | "RESEARCH"
@@ -151,7 +151,8 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
         const status = await researchAction(ctx);
         recordTrace("Research", status);
         if (status === "FAILURE") {
-          console.warn("[DeepController:FSM] Research failed or timed out. Proceeding to Diagnose with baseline priors.");
+          console.error("[DeepController:FSM] Research failed. Returning to the orchestrator for a full restart with prior results.");
+          return "FAILURE";
         }
         await ctx.executionJournal.recordPhaseComplete(ctx.runId, nextPhase, ctx.iteration);
         nextPhase = "DIAGNOSE";
@@ -176,9 +177,8 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
         const status = await diversityGateAction(ctx);
         recordTrace("DiversityGate", status);
         if (status === "FAILURE") {
-          console.warn("[DeepController:FSM] Diversity Gate disqualified candidate set. Regrouping hypotheses in Diagnose.");
-          nextPhase = "DIAGNOSE";
-          break;
+          console.error("[DeepController:FSM] Diversity Gate failed. Returning to the orchestrator for a full restart with prior results.");
+          return "FAILURE";
         }
         await ctx.executionJournal.recordPhaseComplete(ctx.runId, nextPhase, ctx.iteration);
         nextPhase = "FALSIFY";
@@ -190,9 +190,8 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
         const status = await falsifyAction(ctx);
         recordTrace("Falsify", status);
         if (status === "FAILURE") {
-          console.warn("[DeepController:FSM] All hypotheses were falsified. Backtracking to Diagnose for fresh formulation.");
-          nextPhase = "DIAGNOSE";
-          break;
+          console.error("[DeepController:FSM] Falsification failed. Returning to the orchestrator for a full restart with prior results.");
+          return "FAILURE";
         }
         await ctx.executionJournal.recordPhaseComplete(ctx.runId, nextPhase, ctx.iteration);
         nextPhase = "IMPLEMENT";
@@ -217,7 +216,8 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
         const status = await verifyAction(ctx);
         recordTrace("Verify", status);
         if (status === "FAILURE") {
-          console.warn("[DeepController:FSM] Verification runner encountered system error.");
+          console.error("[DeepController:FSM] Verification failed. Returning to the orchestrator for a full restart with prior results.");
+          return "FAILURE";
         }
         await ctx.executionJournal.recordPhaseComplete(ctx.runId, nextPhase, ctx.iteration);
         nextPhase = "COMPARE";
@@ -229,35 +229,8 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
         const status = await compareAction(ctx);
         recordTrace("Compare", status);
         if (status === "FAILURE") {
-          // All candidates disqualified by Hard Gates
-          console.warn("[DeepController:FSM] All candidates failed Hard Gates or baseline comparison.");
-          const allRejectionReasons = [
-            ...ctx.rejectionFeedbacks,
-            "All candidate implementations failed Hard Gates.",
-          ];
-          const recentEvidenceIds = ctx.evidenceStore?.getAllObservations().slice(-5).map((o) => o.id) ?? [];
-          const decision = routeBacktrack(allRejectionReasons, undefined, {
-            evidenceIds: recentEvidenceIds,
-            diagnostics: {
-              iteration: ctx.iteration,
-              source: "compare_failure",
-            },
-          });
-          ctx.backtrackDecision = decision;
-          ctx.budgetTracker.recordBacktrack(decision.target);
-          ctx.evidenceStore?.addDecision({
-            source: "backtrack_router:compare",
-            content: `Diagnosed ${decision.failureClass} (${decision.failureMode}) -> Routed to [Phase: ${decision.target}] (Confidence: ${(decision.confidence * 100).toFixed(0)}%)`,
-            iteration: ctx.iteration,
-            data: { decision },
-          });
-
-          // Direct jump via Backtrack Router
-          nextPhase = mapTargetToDeepPhase(decision.target);
-          ctx.iteration++;
-          await ctx.currentAttempt.rollbackTransientState();
-          ctx.compactor.compactForBacktrack(ctx, decision.target);
-          break;
+          console.error("[DeepController:FSM] Candidate comparison failed. Returning all verification results to the orchestrator for a full restart.");
+          return "FAILURE";
         }
         await ctx.executionJournal.recordPhaseComplete(ctx.runId, nextPhase, ctx.iteration);
         nextPhase = "REVIEW";
@@ -276,39 +249,8 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
 
         // All candidates rejected by Clean-Room Review
         console.warn("[DeepController:FSM] Clean-room review rejected all queued candidates.");
-        const allRejectionReasons = [
-          ...ctx.rejectionFeedbacks,
-          ...(ctx.review?.blockingIssues ?? []),
-        ];
-        const recentEvidenceIds = ctx.evidenceStore?.getAllObservations().slice(-5).map((o) => o.id) ?? [];
-        const decision = routeBacktrack(allRejectionReasons, ctx.review?.failureClass, {
-          evidenceIds: recentEvidenceIds,
-          diagnostics: {
-            iteration: ctx.iteration,
-            failureClass: ctx.review?.failureClass,
-            blockingIssuesCount: ctx.review?.blockingIssues?.length ?? 0,
-          },
-        });
-        ctx.backtrackDecision = decision;
-        ctx.budgetTracker.recordBacktrack(decision.target);
-        ctx.evidenceStore?.addDecision({
-          source: "backtrack_router:review",
-          content: `Diagnosed ${decision.failureClass} (${decision.failureMode}) -> Routed to [Phase: ${decision.target}] (Confidence: ${(decision.confidence * 100).toFixed(0)}%)`,
-          iteration: ctx.iteration,
-          data: { decision },
-        });
-
-        console.log(
-          `[DeepController:Backtrack] Router mapped failure '${decision.failureMode}' directly to Phase: [${decision.target}] (Confidence: ${(decision.confidence * 100).toFixed(0)}%)`
-        );
-        console.log(`[DeepController:Backtrack] Recommendation: ${decision.recommendedAction}`);
-
-        // Direct state transition to the targeted phase!
-        nextPhase = mapTargetToDeepPhase(decision.target);
-        ctx.iteration++;
-        await ctx.currentAttempt.rollbackTransientState();
-        ctx.compactor.compactForBacktrack(ctx, decision.target);
-        break;
+        console.error("[DeepController:FSM] Clean-room review failed. Returning prior review results to the orchestrator for a full restart.");
+        return "FAILURE";
       }
     }
   }

@@ -340,6 +340,13 @@ export class ContextCompactor {
   buildDiagnosisPromptContext(ctx: HarnessContext): string | undefined {
     const sections: string[] = [];
 
+    const recoveryHistory = ctx.recoveryHistory ?? [];
+    if (recoveryHistory.length > 0) {
+      sections.push(
+        `PREVIOUS FAILED RUN RESULTS (Use this evidence to change the approach; do not repeat failed candidates or assumptions):\n${recoveryHistory.join("\n\n--- Previous attempt ---\n\n")}`
+      );
+    }
+
     // 1. Distilled Lessons and Negative Constraints from previous attempts & historical memories
     const lessons = ctx.distilledLessons ?? [];
     const historicalNegatives = (ctx.recalledMemories ?? [])

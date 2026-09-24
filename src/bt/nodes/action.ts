@@ -22,7 +22,7 @@ export class ActionNode<TContext> implements BTNode<TContext> {
       return "SUCCESS";
     } catch (err) {
       console.error(`[BT:Action] Error executing action "${this.name}":`, err);
-      return "FAILURE";
+      throw err;
     }
   }
 }

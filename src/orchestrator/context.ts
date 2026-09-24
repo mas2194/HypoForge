@@ -153,7 +153,7 @@ export interface HarnessContext {
   backtrackDecision?: BacktrackDecision;
   rejectionFeedbacks: string[];
   distilledLessons: DistilledLesson[];
+  recoveryHistory?: string[];
   compactionRecords: CompactionRecord[];
   traceLog: NodeExecutionRecord[];
 }
-

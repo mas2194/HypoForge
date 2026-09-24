@@ -20,6 +20,7 @@ export interface FalsifyOptions {
   candidates: CandidateHypothesis[];
   goal: string;
   repoPath?: string;
+  priorResults?: string[];
 }
 
 export async function runFalsifyPhase(
@@ -38,6 +39,9 @@ export async function runFalsifyPhase(
 ${systemPrompt}
 
 Goal: ${options.goal}
+
+Previous failed run results (use these to avoid repeating falsified or failed approaches):
+${(options.priorResults ?? []).join("\n\n--- Previous attempt ---\n\n") || "None."}
 
 Evaluate each of the following candidate hypotheses with rigorous scrutiny.
 Try to disprove them, find hidden risks, or identify why they might fail:

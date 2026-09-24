@@ -160,6 +160,7 @@ export async function triageAction(ctx: HarnessContext): Promise<NodeStatus> {
     repoLanguage: inspection.repoLanguage,
     targetSubsystems: inspection.targetSubsystems,
     keyDependencies: inspection.keyDependencies,
+    previousRunResults: ctx.recoveryHistory ?? [],
   });
   const researchDecision = await judgeResearchNeed(
     ctx.goal,
@@ -168,7 +169,16 @@ export async function triageAction(ctx: HarnessContext): Promise<NodeStatus> {
     ctx.repoRoot
   );
   ctx.researchRouting = researchDecision;
-  const decision = triageExecutionPath(ctx.goal, inspection, signature, researchDecision);
+  let decision = triageExecutionPath(ctx.goal, inspection, signature, researchDecision);
+  if ((ctx.recoveryHistory?.length ?? 0) > 0 && decision.path === "FAST") {
+    decision = {
+      ...decision,
+      path: "DEEP",
+      reason: `Escalated to DEEP after a failed full-run attempt. ${decision.reason}`,
+      confidence: Math.max(decision.confidence, 0.8),
+      signals: [...decision.signals, "Previous run results require architectural re-evaluation"],
+    };
+  }
   ctx.triageDecision = decision;
 
   console.log(
@@ -273,7 +283,11 @@ export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   );
 
   ctx.research = await runResearchPhase(
-    { goal: ctx.goal, repoPath: ctx.worktreeManager.repoRoot },
+    {
+      goal: ctx.goal,
+      repoPath: ctx.worktreeManager.repoRoot,
+      context: (ctx.recoveryHistory ?? []).join("\n\n--- Previous attempt ---\n\n"),
+    },
     ctx.codexManager
   );
   await ctx.memoryManager.saveArtifact(ctx.runId, "research.json", ctx.research);
@@ -467,6 +481,7 @@ export async function falsifyAction(ctx: HarnessContext): Promise<NodeStatus> {
       candidates: ctx.diagnosis.candidates,
       goal: ctx.goal,
       repoPath: ctx.worktreeManager.repoRoot,
+      priorResults: ctx.recoveryHistory ?? [],
     },
     ctx.codexManager
   );
@@ -540,7 +555,13 @@ export async function fastImplementAction(ctx: HarnessContext): Promise<NodeStat
     codexManager: ctx.codexManager,
     runId: ctx.runId,
     eventBus: ctx.eventBus,
+    priorResults: ctx.recoveryHistory ?? [],
   });
+
+  if (ctx.implementations.some((implementation) => implementation.status === "failed")) {
+    ctx.rejectionFeedbacks.push("Fast-path implementation failed; see the full worker error in recovery history.");
+    return "FAILURE";
+  }
 
   emitPhaseChange(ctx, "completed", "FastPath implementation completed");
   return "SUCCESS";
@@ -582,7 +603,14 @@ export async function implementAction(ctx: HarnessContext): Promise<NodeStatus> 
     codexManager: ctx.codexManager,
     runId: ctx.runId,
     eventBus: ctx.eventBus,
+    priorResults: ctx.recoveryHistory ?? [],
   });
+
+  if (ctx.implementations.some((implementation) => implementation.status === "failed")) {
+    ctx.rejectionFeedbacks.push("One or more candidate implementations failed; see worker errors in recovery history.");
+    emitPhaseChange(ctx, "failed", "One or more candidate implementations failed");
+    return "FAILURE";
+  }
 
   await ctx.memoryManager.saveArtifact(ctx.runId, "implementations.json", ctx.implementations);
   console.log(`[Phase: Implement] Finished implementations in isolated worktrees.`);

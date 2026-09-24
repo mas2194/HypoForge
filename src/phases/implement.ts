@@ -18,6 +18,7 @@ export interface ImplementOptions {
   codexManager?: CodexClientManager;
   runId?: string;
   eventBus?: HarnessEventBus;
+  priorResults?: string[];
 }
 
 export async function runImplementPhase(
@@ -80,6 +81,8 @@ export async function runImplementPhase(
         const prompt = `
 ${systemPrompt}
 
+${options.priorResults?.length ? `Previous failed run results (use these to avoid repeating failed approaches):\n${options.priorResults.join("\n\n--- Previous attempt ---\n\n")}` : ""}
+
 You are implementing Candidate Solution: "${candidate.id}" (Intervention Level: ${candidate.level}).
 Hypothesis: ${candidate.hypothesis}
 Experiment: ${candidate.experiment}
@@ -106,6 +109,7 @@ Instructions:
       } catch (err: any) {
         console.error(`Implementation failed for ${candidate.id}:`, err);
         impl.status = "failed";
+        impl.error = err?.stack || err?.message || String(err);
 
         options.eventBus?.emitSubAgent({
           agentId: `worker-${candidate.id}`,
@@ -115,7 +119,7 @@ Instructions:
           status: "failed",
           type: "finish",
           message: `Implementation failed: ${err?.message || err}`,
-          details: { candidateId: candidate.id, error: String(err) },
+          details: { candidateId: candidate.id, error: impl.error },
         });
       }
     } else {

@@ -210,6 +210,12 @@ export class HarnessRunner {
         const finalState = await harness.runUntilFinished();
 
         let responseText = `### Execution Summary\n- **Final Phase**: \`${finalState.phase}\`\n`;
+        if (finalState.recoveryHistory?.length) {
+          responseText += `- **Automatic full restarts**: ${finalState.recoveryHistory.length}\n`;
+        }
+        if (finalState.error) {
+          responseText += `- **Last error**: ${finalState.error.replace(/\n/g, " ")}\n`;
+        }
         if (finalState.winner) {
           responseText += `- **Winning Candidate**: \`${finalState.winner.implementation.candidateId}\` (${finalState.winner.implementation.level})\n`;
           responseText += `- **Evidence Score**: **${finalState.winner.verification.score.toFixed(2)}**\n`;

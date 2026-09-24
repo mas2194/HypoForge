@@ -28,6 +28,7 @@ export interface OrchestratorOptions {
   codexModelReasoningEffort?: ModelReasoningEffort;
   publishPr?: boolean;
   maxExplorationAttempts?: number;
+  maxAutomaticRestarts?: number;
   budgetLimits?: Partial<BudgetLimits>;
   enableTracing?: boolean;
   dbPath?: string;
@@ -39,9 +40,11 @@ export class HarnessOrchestrator {
   public readonly context: HarnessContext;
   public readonly tree: BTNode<HarnessContext>;
   private readonly resumeRunId?: string;
+  private readonly maxAutomaticRestarts: number;
 
   constructor(options: OrchestratorOptions) {
     this.resumeRunId = options.resumeRunId;
+    this.maxAutomaticRestarts = Math.max(0, Math.floor(options.maxAutomaticRestarts ?? 1));
     const runId = options.resumeRunId ?? `run-${Date.now()}`;
     const worktreeManager = new WorktreeManager({ repoRoot: options.repoRoot });
     const evaluator = new Evaluator();
@@ -124,6 +127,7 @@ export class HarnessOrchestrator {
       iteration: 1,
       rejectionFeedbacks: [],
       distilledLessons: [],
+      recoveryHistory: [],
       compactionRecords: [],
       traceLog: [],
       eventBus: options.eventBus,
@@ -157,12 +161,61 @@ export class HarnessOrchestrator {
       }
     }
 
-    const status: NodeStatus = await this.tree.tick(this.context);
+    let status: NodeStatus = "FAILURE";
+    let lastError: string | undefined;
+    for (let restart = 0; restart <= this.maxAutomaticRestarts; restart++) {
+      this.context.error = undefined;
+      try {
+        status = await this.tree.tick(this.context);
+        lastError = status === "FAILURE"
+          ? `${this.context.phase} phase returned FAILURE.`
+          : undefined;
+      } catch (error) {
+        status = "FAILURE";
+        lastError = error instanceof Error ? error.stack || error.message : String(error);
+      }
+
+      if (status !== "FAILURE") break;
+      this.context.error = lastError;
+      if (restart >= this.maxAutomaticRestarts) break;
+
+      const budget = this.context.budgetTracker.checkBudget();
+      if (budget.exhausted) {
+        this.context.error = `${lastError}\nAutomatic restart skipped: ${budget.reason}`;
+        console.error(`[Orchestrator:Recovery] Cannot restart: ${budget.reason}`);
+        break;
+      }
+
+      const previousResults = this.captureFailedRun(lastError ?? "Behavior Tree returned FAILURE.");
+      (this.context.recoveryHistory ??= []).push(previousResults);
+      await this.context.memoryManager.saveArtifact(
+        this.context.runId,
+        `recovery-attempt-${restart + 1}.json`,
+        JSON.parse(previousResults)
+      ).catch((error) => {
+        console.warn("[Orchestrator:Recovery] Could not persist previous results:", error);
+      });
+
+      console.warn(`[Orchestrator:Recovery] Restarting from Inspect (${restart + 1}/${this.maxAutomaticRestarts}) with prior results and error context.`);
+      this.context.eventBus?.emitChat({
+        id: `recovery-${Date.now()}`,
+        role: "system",
+        text: `⚠️ Execution failed during ${this.context.phase}. Restarting from Inspect with the error and all results from this attempt included.\n\n\`${lastError ?? "Behavior Tree returned FAILURE."}\``,
+      });
+      this.context.eventBus?.emitEvent({
+        type: "harness:status",
+        data: { running: true, activeGoal: this.context.goal, phase: Phase.Inspect },
+      });
+      await this.resetForAutomaticRestart();
+    }
+
     this.context.finished = true;
     this.context.phase = Phase.Finished;
 
     if (status === "FAILURE") {
-      this.context.error = "Execution halted: Behavior Tree returned FAILURE";
+      this.context.error = this.context.error ?? lastError ?? "Execution halted: Behavior Tree returned FAILURE";
+    } else {
+      this.context.error = undefined;
     }
 
     const winnerSummary = this.context.winner
@@ -186,5 +239,102 @@ export class HarnessOrchestrator {
     });
 
     return this.context;
+  }
+
+  private captureFailedRun(error: string): string {
+    const context = this.context;
+    const recoveryHistory = context.recoveryHistory ?? (context.recoveryHistory = []);
+    const results = {
+      attempt: recoveryHistory.length + 1,
+      failedPhase: context.phase,
+      error,
+      goal: context.goal,
+      repoInspection: context.repoInspection,
+      problemSignature: context.problemSignature,
+      activeSkills: context.activeSkills,
+      triageDecision: context.triageDecision,
+      researchRouting: context.researchRouting,
+      research: context.research,
+      diagnosis: context.diagnosis,
+      diversityEvaluation: context.diversityEvaluation,
+      falsifiedCandidates: context.falsifiedCandidates,
+      falsificationReviews: context.falsificationReviews,
+      implementations: context.implementations,
+      baselineVerification: context.baselineVerification,
+      verifications: context.verifications,
+      paretoComparison: context.paretoComparison,
+      winner: context.winner,
+      review: context.review,
+      rejectedCandidates: context.rejectedCandidates,
+      rejectionFeedbacks: context.rejectionFeedbacks,
+      distilledLessons: context.distilledLessons,
+      traceLog: context.traceLog,
+      budgetUsage: context.budgetTracker.getUsage(),
+      evidence: {
+        observations: context.evidenceStore.getAllObservations(),
+        assertions: context.evidenceStore.getAllAssertions(),
+        inferences: context.evidenceStore.getAllInferences(),
+        decisions: context.evidenceStore.getAllDecisions(),
+      },
+    };
+    return JSON.stringify(results, null, 2);
+  }
+
+  private async resetForAutomaticRestart(): Promise<void> {
+    const context = this.context;
+    const recoveryHistory = context.recoveryHistory ?? (context.recoveryHistory = []);
+    await context.worktreeManager.cleanAllWorktrees().catch((error) => {
+      console.warn("[Orchestrator:Recovery] Worktree cleanup failed before restart:", error);
+    });
+
+    context.phase = Phase.Inspect;
+    context.finished = false;
+    context.error = undefined;
+    context.unresolved = undefined;
+    context.unresolvedReason = undefined;
+    context.repoInspection = undefined;
+    context.problemSignature = undefined;
+    context.recalledMemories = [];
+    context.activeSkills = [];
+    context.triageDecision = undefined;
+    context.researchRouting = undefined;
+    context.research = undefined;
+    context.diagnosis = undefined;
+    context.diversityEvaluation = undefined;
+    context.falsifiedCandidates = undefined;
+    context.falsificationReviews = undefined;
+    context.implementations = [];
+    context.verifications = [];
+    context.baselineVerification = undefined;
+    context.paretoComparison = undefined;
+    context.candidateQueue = [];
+    context.rejectedCandidates = [];
+    context.hypothesisScheduler = undefined;
+    context.winner = undefined;
+    context.review = undefined;
+    context.verifiedCommitSha = undefined;
+    context.commitGraph = undefined;
+    context.publishedPrUrl = undefined;
+    context.adrFilename = undefined;
+    context.verifiedMemory = undefined;
+    context.crystallizedSkill = undefined;
+    context.exportedTrajectoryPath = undefined;
+    context.backtrackDecision = undefined;
+    context.rejectionFeedbacks = [];
+    context.distilledLessons = [];
+    context.iteration = 1;
+    context.currentAttempt = {
+      id: `attempt-restart-${recoveryHistory.length}-fast`,
+      type: "FAST",
+      iteration: 1,
+      worktreePaths: [],
+      implementations: [],
+      verifications: [],
+      candidateQueue: [],
+      rejectedCandidates: [],
+      rollbackTransientState: async () => context.worktreeManager.cleanAllWorktrees(),
+    };
+    context.attempts.push(context.currentAttempt);
+    context.traceLog = [];
   }
 }

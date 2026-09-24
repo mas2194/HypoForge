@@ -20,6 +20,7 @@ export const CandidateImplementationSchema = z.object({
   worktreePath: z.string(),
   branchName: z.string(),
   status: z.enum(["pending", "implementing", "completed", "failed"]),
+  error: z.string().optional(),
 });
 
 export type CandidateImplementation = z.infer<typeof CandidateImplementationSchema>;
