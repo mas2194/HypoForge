@@ -1,7 +1,14 @@
+import crypto from "node:crypto";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
-import { VerificationResultSchema, type VerificationResult } from "../schemas/result.js";
+import { VerificationResultSchema, type VerificationResult, type DiagnosticItem } from "../schemas/result.js";
 import { verifyTestIntegrity } from "./integrity.js";
+import {
+  FourTierVerificationRunner,
+  type AcceptanceCriterion,
+  type AdversarialScenario,
+  type MetamorphicTestProperty,
+} from "./oracle.js";
 
 const execAsync = promisify(exec);
 
@@ -13,11 +20,70 @@ export interface RunVerificationOptions {
   interventionLevel?: number;
   benchmarkBefore?: number;
   benchmarkAfter?: number;
+  acceptanceCriteria?: AcceptanceCriterion[];
+  adversarialScenarios?: AdversarialScenario[];
+  metamorphicProperties?: MetamorphicTestProperty<any, any>[];
+  metamorphicSubject?: any;
 }
 
 export interface RunBaselineOptions {
   repoPath: string;
   testCommand?: string;
+}
+
+function hashDiagnostic(filePath: string, code: string, message: string): string {
+  return crypto.createHash("sha256").update(`${filePath}:${code}:${message}`).digest("hex").slice(0, 16);
+}
+
+export function extractDiagnostics(output: string): {
+  typeErrors: DiagnosticItem[];
+  lintErrors: DiagnosticItem[];
+} {
+  const typeErrors: DiagnosticItem[] = [];
+  const lintErrors: DiagnosticItem[] = [];
+  const lines = output.split("\n");
+
+  for (const line of lines) {
+    // TypeScript pattern: path/to/file.ts(10,5): error TS2345: Message
+    // or path/to/file.ts:10:5 - error TS2345: Message
+    const tsMatch = line.match(/^([^(:\s]+)(?:(?:\((\d+),(\d+)\))|(?::(\d+):(\d+)))?:\s*(?:-\s*)?error\s+(TS\d+):\s*(.+)$/i);
+    if (tsMatch) {
+      const filePath = tsMatch[1].trim();
+      const lineNum = parseInt(tsMatch[2] || tsMatch[4] || "0", 10);
+      const colNum = parseInt(tsMatch[3] || tsMatch[5] || "0", 10);
+      const code = tsMatch[6].trim();
+      const message = tsMatch[7].trim();
+      typeErrors.push({
+        filePath,
+        line: lineNum || undefined,
+        column: colNum || undefined,
+        code,
+        message,
+        identityHash: hashDiagnostic(filePath, code, message),
+      });
+      continue;
+    }
+
+    // ESLint / Linter pattern: path/to/file.js:10:5: error: Message [rule-name]
+    const lintMatch = line.match(/^([^(:\s]+):(\d+):(\d+):\s*(?:error|warning)\s*:\s*(.+?)(?:\s*\[([^\]]+)\])?$/i);
+    if (lintMatch) {
+      const filePath = lintMatch[1].trim();
+      const lineNum = parseInt(lintMatch[2], 10);
+      const colNum = parseInt(lintMatch[3], 10);
+      const message = lintMatch[4].trim();
+      const code = (lintMatch[5] || "lint-rule").trim();
+      lintErrors.push({
+        filePath,
+        line: lineNum,
+        column: colNum,
+        code,
+        message,
+        identityHash: hashDiagnostic(filePath, code, message),
+      });
+    }
+  }
+
+  return { typeErrors, lintErrors };
 }
 
 function extractFailingTestIds(output: string): string[] {
@@ -61,12 +127,13 @@ export class Evaluator {
     }
 
     const failingTestIds = extractFailingTestIds(testOutput);
+    const diagnostics = extractDiagnostics(testOutput);
     const testsPassed = failed === 0 && passed > 0;
     const hardGates = {
       testsPassed,
       noRegressions: regressions.length === 0,
-      typecheckPassed: true,
-      lintPassed: true,
+      typecheckPassed: diagnostics.typeErrors.length === 0,
+      lintPassed: diagnostics.lintErrors.length === 0,
       testIntegrityPassed: true,
       passedAll: testsPassed && regressions.length === 0,
       failureReasons: regressions,
@@ -95,10 +162,7 @@ export class Evaluator {
         failingTestIds,
         passingTestIds: passed > 0 ? ["baseline-suite-passed"] : [],
       },
-      diagnostics: {
-        typeErrors: [],
-        lintErrors: [],
-      },
+      diagnostics,
       metamorphic: {
         tested: false,
         passed: true,
@@ -190,15 +254,52 @@ export class Evaluator {
       regressions.push(...integrityResult.violations);
     }
 
+    // 3.6 Four-Tier Independent Verification Oracle Evaluation
+    const fourTierRunner = new FourTierVerificationRunner();
+
+    // Tier 2: Acceptance Oracle
+    const acceptance = await fourTierRunner.evaluateAcceptance(
+      options.acceptanceCriteria ?? [],
+      { worktreePath, testOutput }
+    );
+    if (!acceptance.passed) {
+      regressions.push(...acceptance.missingCriteria.map((m) => `Acceptance criterion missing: ${m}`));
+    }
+
+    // Tier 3: Hidden Adversarial Scenarios
+    const adversarial = await fourTierRunner.evaluateAdversarial(
+      options.adversarialScenarios ?? [],
+      { worktreePath }
+    );
+    if (!adversarial.passed) {
+      regressions.push(...adversarial.failureReasons);
+    }
+
+    // Tier 4: Metamorphic & Invariant Properties
+    const metamorphic = options.metamorphicProperties && options.metamorphicProperties.length > 0
+      ? await fourTierRunner.evaluateMetamorphic(options.metamorphicSubject, options.metamorphicProperties)
+      : {
+          tested: false,
+          passed: true,
+          properties: {},
+          failureReasons: [],
+        };
+    if (metamorphic.tested && !metamorphic.passed) {
+      regressions.push(...metamorphic.failureReasons);
+    }
+
     // 4. Hard Gates Check
+    const diagnostics = extractDiagnostics(testOutput);
     const testsPassed = failed === 0 && passed > 0;
     const noRegressions = regressions.length === 0;
     const testIntegrityPassed = integrityResult.passed;
+    const typecheckPassed = diagnostics.typeErrors.length === 0;
+    const lintPassed = diagnostics.lintErrors.length === 0;
     const hardGates = {
       testsPassed,
       noRegressions,
-      typecheckPassed: true,
-      lintPassed: true,
+      typecheckPassed,
+      lintPassed,
       testIntegrityPassed,
       passedAll: testsPassed && noRegressions && testIntegrityPassed,
       failureReasons: regressions,
@@ -241,16 +342,10 @@ export class Evaluator {
         failingTestIds,
         passingTestIds: passed > 0 ? [`${candidateId}-tests-passed`] : [],
       },
-      diagnostics: {
-        typeErrors: [],
-        lintErrors: [],
-      },
-      metamorphic: {
-        tested: false,
-        passed: true,
-        properties: {},
-        failureReasons: [],
-      },
+      diagnostics,
+      acceptance,
+      adversarial,
+      metamorphic,
       benchmark: benchmarkBefore && benchmarkAfter ? {
         before: benchmarkBefore,
         after: benchmarkAfter,

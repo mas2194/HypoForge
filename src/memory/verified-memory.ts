@@ -5,12 +5,39 @@ import type { CandidateImplementation } from "../schemas/candidate.js";
 import type { DurableMemoryManager } from "./durable-memory.js";
 
 export type MemoryProvenance =
+  | "PROPOSED"
   | "MACHINE_VERIFIED"
-  | "REVIEW_VERIFIED"
-  | "CI_VERIFIED"
+  | "CLEANROOM_APPROVED"
+  | "LOCAL_INTEGRATION_VERIFIED"
+  | "PR_CREATED"
+  | "REMOTE_CI_VERIFIED"
   | "HUMAN_APPROVED"
   | "MERGED"
   | "POST_MERGE_STABLE";
+
+export const PROVENANCE_HIERARCHY: Record<MemoryProvenance, number> = {
+  PROPOSED: 1,
+  MACHINE_VERIFIED: 2,
+  CLEANROOM_APPROVED: 3,
+  LOCAL_INTEGRATION_VERIFIED: 4,
+  PR_CREATED: 5,
+  REMOTE_CI_VERIFIED: 6,
+  HUMAN_APPROVED: 7,
+  MERGED: 8,
+  POST_MERGE_STABLE: 9,
+};
+
+export const PROVENANCE_CONFIDENCE_WEIGHTS: Record<MemoryProvenance, number> = {
+  PROPOSED: 0.3,
+  MACHINE_VERIFIED: 0.5,
+  CLEANROOM_APPROVED: 0.7,
+  LOCAL_INTEGRATION_VERIFIED: 0.8,
+  PR_CREATED: 0.85,
+  REMOTE_CI_VERIFIED: 0.92,
+  HUMAN_APPROVED: 0.95,
+  MERGED: 1.0,
+  POST_MERGE_STABLE: 1.0,
+};
 
 export interface VerifiedMemoryRecord {
   id: string;
@@ -37,6 +64,50 @@ export interface VerifiedMemoryRecord {
   expiresAt?: string;
   supersededBy?: string;
   verifiedAt: string;
+}
+
+/**
+ * Promotes an existing verified memory record along the confidence lifecycle ladder.
+ */
+export async function promoteMemoryProvenance(options: {
+  record: VerifiedMemoryRecord;
+  newProvenance: MemoryProvenance;
+  memoryManager: DurableMemoryManager;
+  reason?: string;
+}): Promise<VerifiedMemoryRecord> {
+  const { record, newProvenance, memoryManager, reason } = options;
+  const currentLevel = PROVENANCE_HIERARCHY[record.provenance] ?? 0;
+  const newLevel = PROVENANCE_HIERARCHY[newProvenance] ?? 0;
+
+  if (newLevel <= currentLevel) {
+    return record; // Non-decreasing monotonicity
+  }
+
+  record.provenance = newProvenance;
+  record.confidence = PROVENANCE_CONFIDENCE_WEIGHTS[newProvenance] ?? record.confidence;
+  record.verifiedAt = new Date().toISOString();
+
+  // 1. Update artifact in run directory
+  await memoryManager.saveArtifact(record.runId, "verified-memory.json", record);
+
+  // 2. Index in SQLite FTS5 as promoted knowledge entry
+  try {
+    memoryManager.ftsIndex.insert({
+      id: `${record.id}:${newProvenance.toLowerCase()}`,
+      runId: record.runId,
+      type: "verified_claim",
+      title: `[VERIFIED] [${newProvenance}] ${record.interventionLevel}: ${record.claim.slice(0, 50)}`,
+      content: `${record.claim} [Promoted to: ${newProvenance}] Reason: ${reason ?? "Lifecycle progression"} (Confidence: ${record.confidence})`,
+      createdAt: record.verifiedAt,
+    });
+  } catch (err) {
+    console.warn("[VerifiedMemory] Warning updating promoted memory in FTS5:", err);
+  }
+
+  console.log(
+    `[VerifiedMemory:Lifecycle] Promoted memory '${record.id}' to [${newProvenance}] (Confidence: ${record.confidence})`
+  );
+  return record;
 }
 
 /**

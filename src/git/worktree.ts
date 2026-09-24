@@ -148,6 +148,25 @@ export class WorktreeManager {
   }
 
   /**
+   * Rebases candidate branch onto baseRef to guarantee integration correctness.
+   */
+  async rebaseOntoBase(
+    candidateBranch: string,
+    baseRef: string = "main",
+    cwd?: string
+  ): Promise<{ success: boolean; integrationSha?: string; error?: string }> {
+    const targetCwd = cwd ?? this.repoRoot;
+    try {
+      await this.git(["rebase", baseRef, candidateBranch], targetCwd);
+      const integrationSha = await this.revParse("HEAD", targetCwd);
+      return { success: true, integrationSha };
+    } catch (err: any) {
+      await this.git(["rebase", "--abort"], targetCwd).catch(() => {});
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
    * Cleans up all worktrees inside the worktrees directory.
    */
   async cleanAllWorktrees(): Promise<void> {

@@ -1,5 +1,70 @@
 import type { HarnessContext } from "./context.js";
 import { Phase } from "./context.js";
+import { BacktrackTarget } from "./backtrack-router.js";
+
+export interface InvalidationScope {
+  research: boolean;
+  hypotheses: boolean;
+  diversityGate: boolean;
+  falsification: boolean;
+  implementations: boolean;
+  verifications: boolean;
+  paretoComparison: boolean;
+  cleanRoomReview: boolean;
+}
+
+export const DEPENDENCY_INVALIDATION_MATRIX: Record<BacktrackTarget, InvalidationScope> = {
+  [BacktrackTarget.Implement]: {
+    research: false,
+    hypotheses: false,
+    diversityGate: false,
+    falsification: false,
+    implementations: true,
+    verifications: true,
+    paretoComparison: true,
+    cleanRoomReview: true,
+  },
+  [BacktrackTarget.Falsify]: {
+    research: false,
+    hypotheses: false,
+    diversityGate: false,
+    falsification: true,
+    implementations: true,
+    verifications: true,
+    paretoComparison: true,
+    cleanRoomReview: true,
+  },
+  [BacktrackTarget.Diagnose]: {
+    research: false,
+    hypotheses: true,
+    diversityGate: true,
+    falsification: true,
+    implementations: true,
+    verifications: true,
+    paretoComparison: true,
+    cleanRoomReview: true,
+  },
+  [BacktrackTarget.Research]: {
+    research: true,
+    hypotheses: true,
+    diversityGate: true,
+    falsification: true,
+    implementations: true,
+    verifications: true,
+    paretoComparison: true,
+    cleanRoomReview: true,
+  },
+  [BacktrackTarget.Inspect]: {
+    research: true,
+    hypotheses: true,
+    diversityGate: true,
+    falsification: true,
+    implementations: true,
+    verifications: true,
+    paretoComparison: true,
+    cleanRoomReview: true,
+  },
+};
 
 export interface DistilledLesson {
   iteration: number;
@@ -13,6 +78,8 @@ export interface CompactionRecord {
   iteration: number;
   phase: Phase;
   reason: "backtrack" | "phase_transition" | "budget_limit";
+  target?: BacktrackTarget;
+  scope?: InvalidationScope;
   purgedItems: string[];
   distilledCount: number;
   summary: string;
@@ -34,15 +101,50 @@ export class ContextCompactor {
 
   /**
    * Distills and compacts the blackboard context when backtracking for a self-healing retry.
-   * Purges transient execution artifacts (worktree implementations, raw test results, winning selection),
-   * extracts core invariant violations from rejection feedbacks, and indexes them into durable memory.
+   * Applies the Dependency Invalidation Matrix based on the backtrack target phase:
+   * selective invalidation preserves verified upstream artifacts while safely purging stale downstream state.
    */
-  compactForBacktrack(ctx: HarnessContext): CompactionRecord {
+  compactForBacktrack(ctx: HarnessContext, target?: BacktrackTarget): CompactionRecord {
     const purgedItems: string[] = [];
     const timestamp = new Date().toISOString();
+    const effectiveTarget = target ?? BacktrackTarget.Diagnose;
+    const scope = DEPENDENCY_INVALIDATION_MATRIX[effectiveTarget];
 
-    // 1. Preserve immutable observations in StructuredEvidenceStore before resetting transient attempt state
-    if (ctx.verifications && ctx.verifications.length > 0) {
+    // 1. Invalidate Review / Winning selection if scoped
+    if (scope.cleanRoomReview) {
+      if (ctx.winner) {
+        purgedItems.push(`winner candidate '${ctx.winner.implementation.candidateId}'`);
+        ctx.winner = undefined;
+      }
+      if (ctx.review) {
+        purgedItems.push("clean-room review outcome");
+        ctx.review = undefined;
+      }
+      ctx.rejectedCandidates = [];
+      if (ctx.currentAttempt) {
+        ctx.currentAttempt.winner = undefined;
+        ctx.currentAttempt.review = undefined;
+        ctx.currentAttempt.rejectedCandidates = [];
+      }
+    }
+
+    // 2. Invalidate Pareto comparison & candidate queue if scoped
+    if (scope.paretoComparison) {
+      if (ctx.candidateQueue && ctx.candidateQueue.length > 0) {
+        purgedItems.push(`candidateQueue (${ctx.candidateQueue.length} items)`);
+        ctx.candidateQueue = [];
+      }
+      if (ctx.paretoComparison) {
+        purgedItems.push("pareto comparison ranking");
+        ctx.paretoComparison = undefined;
+      }
+      if (ctx.currentAttempt) {
+        ctx.currentAttempt.candidateQueue = [];
+      }
+    }
+
+    // 3. Invalidate Verifications if scoped (preserving immutable observations first)
+    if (scope.verifications && ctx.verifications && ctx.verifications.length > 0) {
       for (const ver of ctx.verifications) {
         ctx.evidenceStore?.addObservation({
           source: `verification:${ver.candidateId}`,
@@ -58,33 +160,66 @@ export class ContextCompactor {
       }
       purgedItems.push(`verifications (${ctx.verifications.length} items persisted to evidence store)`);
       ctx.verifications = [];
+      if (ctx.currentAttempt) {
+        ctx.currentAttempt.verifications = [];
+      }
     }
 
-    if (ctx.implementations && ctx.implementations.length > 0) {
+    // 4. Invalidate Implementations if scoped
+    if (scope.implementations && ctx.implementations && ctx.implementations.length > 0) {
       purgedItems.push(`implementations (${ctx.implementations.length} items)`);
       ctx.implementations = [];
-    }
-
-    if (ctx.winner) {
-      purgedItems.push(`winner candidate '${ctx.winner.implementation.candidateId}'`);
-      ctx.winner = undefined;
-    }
-
-    if (ctx.falsifiedCandidates && ctx.falsifiedCandidates.length > 0) {
-      for (const fc of ctx.falsifiedCandidates) {
-        ctx.evidenceStore?.addInference({
-          source: `falsifier:${fc.id}`,
-          content: `Hypothesis: ${fc.hypothesis}`,
-          iteration: ctx.iteration,
-          falsified: true,
-          confidence: fc.confidence,
-        });
+      if (ctx.currentAttempt) {
+        ctx.currentAttempt.implementations = [];
+        ctx.currentAttempt.worktreePaths = [];
       }
-      purgedItems.push(`falsifiedCandidates (${ctx.falsifiedCandidates.length} items persisted to evidence store)`);
-      ctx.falsifiedCandidates = undefined;
     }
 
-    // 2. Distill rejection feedbacks into structured lessons / negative constraints
+    // 5. Invalidate Falsifications if scoped (preserving immutable inferences first)
+    if (scope.falsification) {
+      if (ctx.falsifiedCandidates && ctx.falsifiedCandidates.length > 0) {
+        for (const fc of ctx.falsifiedCandidates) {
+          ctx.evidenceStore?.addInference({
+            source: `falsifier:${fc.id}`,
+            content: `Hypothesis: ${fc.hypothesis}`,
+            iteration: ctx.iteration,
+            falsified: true,
+            confidence: fc.confidence,
+          });
+        }
+        purgedItems.push(`falsifiedCandidates (${ctx.falsifiedCandidates.length} items persisted to evidence store)`);
+        ctx.falsifiedCandidates = undefined;
+      }
+      if (ctx.falsificationReviews) {
+        purgedItems.push("falsification reviews");
+        ctx.falsificationReviews = undefined;
+      }
+    }
+
+    // 6. Invalidate Diversity Gate if scoped
+    if (scope.diversityGate && ctx.diversityEvaluation) {
+      purgedItems.push("diversityEvaluation");
+      ctx.diversityEvaluation = undefined;
+    }
+
+    // 7. Invalidate Hypotheses / Diagnosis if scoped
+    if (scope.hypotheses && ctx.diagnosis) {
+      purgedItems.push(`diagnosis (${ctx.diagnosis.candidates.length} hypotheses invalidated)`);
+      ctx.diagnosis = undefined;
+    }
+
+    // 8. Invalidate Research if scoped
+    if (scope.research) {
+      if (ctx.research) {
+        purgedItems.push("research brief (invalidated due to external spec mismatch)");
+        ctx.research = undefined;
+      }
+      if (ctx.researchRouting) {
+        ctx.researchRouting = undefined;
+      }
+    }
+
+    // 9. Distill rejection feedbacks into structured lessons / negative constraints
     const rawFeedbacks = [...ctx.rejectionFeedbacks];
     let distilledCount = 0;
 
@@ -151,6 +286,8 @@ export class ContextCompactor {
       iteration: ctx.iteration,
       phase: ctx.phase,
       reason: "backtrack",
+      target: effectiveTarget,
+      scope,
       purgedItems,
       distilledCount,
       summary,

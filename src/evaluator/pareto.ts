@@ -120,9 +120,11 @@ export function compareWithPareto(
       }
     }
 
-    // 1.3 Regressions detection
-    if (!hard.noRegressions || item.verification.regressions.length > 0) {
-      reasons.push(`Detected regressions: ${item.verification.regressions.join(", ")}`);
+    // 1.3 Regressions detection (Identity Delta relative to baseline regressions)
+    const baseRegressions = new Set(baseline.regressions ?? []);
+    const newRegressions = item.verification.regressions.filter((r) => !baseRegressions.has(r));
+    if (newRegressions.length > 0) {
+      reasons.push(`Newly introduced regression(s): ${newRegressions.join(", ")}`);
     }
 
     // 1.4 Test & Oracle Integrity

@@ -44,6 +44,24 @@ export const MetamorphicResultSchema = z.object({
 
 export type MetamorphicResult = z.infer<typeof MetamorphicResultSchema>;
 
+export const AcceptanceResultSchema = z.object({
+  tested: z.boolean().default(false),
+  passed: z.boolean().default(true),
+  verifiedCriteria: z.array(z.string()).default([]),
+  missingCriteria: z.array(z.string()).default([]),
+});
+
+export type AcceptanceResult = z.infer<typeof AcceptanceResultSchema>;
+
+export const AdversarialResultSchema = z.object({
+  tested: z.boolean().default(false),
+  passed: z.boolean().default(true),
+  scenarios: z.record(z.string(), z.boolean()).default({}),
+  failureReasons: z.array(z.string()).default([]),
+});
+
+export type AdversarialResult = z.infer<typeof AdversarialResultSchema>;
+
 export const VerificationResultSchema = z.object({
   candidateId: z.string(),
   isBaseline: z.boolean().default(false),
@@ -79,6 +97,18 @@ export const VerificationResultSchema = z.object({
       lintErrors: z.array(DiagnosticItemSchema).default([]),
     })
     .default({ typeErrors: [], lintErrors: [] }),
+  acceptance: AcceptanceResultSchema.default({
+    tested: false,
+    passed: true,
+    verifiedCriteria: [],
+    missingCriteria: [],
+  }),
+  adversarial: AdversarialResultSchema.default({
+    tested: false,
+    passed: true,
+    scenarios: {},
+    failureReasons: [],
+  }),
   metamorphic: MetamorphicResultSchema.default({
     tested: false,
     passed: true,

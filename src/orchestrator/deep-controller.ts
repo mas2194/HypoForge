@@ -48,6 +48,41 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
 
   // Initialize DEEP AttemptContext if current is FAST or uninitialized
   if (!ctx.currentAttempt || ctx.currentAttempt.type !== "DEEP") {
+    if (ctx.currentAttempt && ctx.currentAttempt.type === "FAST") {
+      console.log(
+        `[DeepController:Isolation] Escalating from failed FastTrack attempt (${ctx.currentAttempt.id}). Preserving evidence and rolling back transient state.`
+      );
+      // 1. Rollback all transient worktrees from FastTrack
+      await ctx.currentAttempt.rollbackTransientState();
+
+      // 2. Transfer Fast failure evidence to StructuredEvidenceStore
+      if (ctx.verifications && ctx.verifications.length > 0) {
+        for (const ver of ctx.verifications) {
+          ctx.evidenceStore?.addObservation({
+            source: `fast_track:${ver.candidateId}`,
+            content: `FastTrack verification rejected: exitCode=${ver.tests.exitCode}, passed=${ver.tests.passed}, failed=${ver.tests.failed}`,
+            iteration: ctx.iteration,
+            data: { candidateId: ver.candidateId, tests: ver.tests, hardGates: ver.hardGates },
+          });
+        }
+      }
+      if (ctx.review && !ctx.review.approved) {
+        ctx.evidenceStore?.addObservation({
+          source: `fast_track:review`,
+          content: `FastTrack clean-room audit rejected: ${ctx.review.blockingIssues.join("; ")}`,
+          iteration: ctx.iteration,
+          data: { review: ctx.review },
+        });
+      }
+
+      // 3. Clear transient state on blackboard to guarantee strict isolation
+      ctx.implementations = [];
+      ctx.verifications = [];
+      ctx.candidateQueue = [];
+      ctx.winner = undefined;
+      ctx.review = undefined;
+    }
+
     const deepAttempt = {
       id: `attempt-${Date.now()}-deep`,
       type: "DEEP" as const,
@@ -181,15 +216,28 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
             ...ctx.rejectionFeedbacks,
             "All candidate implementations failed Hard Gates.",
           ];
-          const decision = routeBacktrack(allRejectionReasons);
+          const recentEvidenceIds = ctx.evidenceStore?.getAllObservations().slice(-5).map((o) => o.id) ?? [];
+          const decision = routeBacktrack(allRejectionReasons, undefined, {
+            evidenceIds: recentEvidenceIds,
+            diagnostics: {
+              iteration: ctx.iteration,
+              source: "compare_failure",
+            },
+          });
           ctx.backtrackDecision = decision;
           ctx.budgetTracker.recordBacktrack(decision.target);
+          ctx.evidenceStore?.addDecision({
+            source: "backtrack_router:compare",
+            content: `Diagnosed ${decision.failureClass} (${decision.failureMode}) -> Routed to [Phase: ${decision.target}] (Confidence: ${(decision.confidence * 100).toFixed(0)}%)`,
+            iteration: ctx.iteration,
+            data: { decision },
+          });
 
           // Direct jump via Backtrack Router
           nextPhase = mapTargetToDeepPhase(decision.target);
           ctx.iteration++;
           await ctx.currentAttempt.rollbackTransientState();
-          ctx.compactor.compactForBacktrack(ctx);
+          ctx.compactor.compactForBacktrack(ctx, decision.target);
           break;
         }
         await ctx.executionJournal.recordPhaseComplete(ctx.runId, nextPhase, ctx.iteration);
@@ -213,12 +261,26 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
           ...ctx.rejectionFeedbacks,
           ...(ctx.review?.blockingIssues ?? []),
         ];
-        const decision = routeBacktrack(allRejectionReasons, ctx.review?.failureClass);
+        const recentEvidenceIds = ctx.evidenceStore?.getAllObservations().slice(-5).map((o) => o.id) ?? [];
+        const decision = routeBacktrack(allRejectionReasons, ctx.review?.failureClass, {
+          evidenceIds: recentEvidenceIds,
+          diagnostics: {
+            iteration: ctx.iteration,
+            failureClass: ctx.review?.failureClass,
+            blockingIssuesCount: ctx.review?.blockingIssues?.length ?? 0,
+          },
+        });
         ctx.backtrackDecision = decision;
         ctx.budgetTracker.recordBacktrack(decision.target);
+        ctx.evidenceStore?.addDecision({
+          source: "backtrack_router:review",
+          content: `Diagnosed ${decision.failureClass} (${decision.failureMode}) -> Routed to [Phase: ${decision.target}] (Confidence: ${(decision.confidence * 100).toFixed(0)}%)`,
+          iteration: ctx.iteration,
+          data: { decision },
+        });
 
         console.log(
-          `[DeepController:Backtrack] Router mapped failure '${decision.failureMode}' directly to Phase: [${decision.target}]`
+          `[DeepController:Backtrack] Router mapped failure '${decision.failureMode}' directly to Phase: [${decision.target}] (Confidence: ${(decision.confidence * 100).toFixed(0)}%)`
         );
         console.log(`[DeepController:Backtrack] Recommendation: ${decision.recommendedAction}`);
 
@@ -226,7 +288,7 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
         nextPhase = mapTargetToDeepPhase(decision.target);
         ctx.iteration++;
         await ctx.currentAttempt.rollbackTransientState();
-        ctx.compactor.compactForBacktrack(ctx);
+        ctx.compactor.compactForBacktrack(ctx, decision.target);
         break;
       }
     }

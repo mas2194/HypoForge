@@ -54,6 +54,14 @@ import type { RepoInspection, ProblemSignature } from "../phases/inspect-repo.js
 import type { VerifiedMemoryRecord } from "../memory/verified-memory.js";
 import { StructuredEvidenceStore } from "./evidence-store.js";
 
+export interface VerifiedCommitGraph {
+  baseSha: string;
+  candidateSha: string;
+  integrationSha: string;
+  verifiedHeadSha: string;
+  remoteHeadSha?: string;
+}
+
 export type AttemptType = "FAST" | "DEEP";
 
 export interface AttemptContext {
@@ -67,6 +75,7 @@ export interface AttemptContext {
   rejectedCandidates: RejectedCandidateRecord[];
   winner?: QueuedCandidate;
   review?: ReviewResult;
+  commitGraph?: VerifiedCommitGraph;
   rollbackTransientState: () => Promise<void>;
 }
 
@@ -104,6 +113,7 @@ export interface HarnessContext {
 
   // Invariant: Locked and fully verified Git SHA to be pushed to PR / applied
   verifiedCommitSha?: string;
+  commitGraph?: VerifiedCommitGraph;
 
   // Hermes-style Dynamic Memories & Skills
   repoInspection?: RepoInspection;

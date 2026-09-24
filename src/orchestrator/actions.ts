@@ -12,9 +12,9 @@ import type { CandidateHypothesis } from "../schemas/diagnosis.js";
 import { routeResearch } from "../phases/research-router.js";
 
 import { evaluateDiversity, enforceDiversity } from "../phases/diversity-gate.js";
-import { routeBacktrack } from "./backtrack-router.js";
+import { routeBacktrack, BacktrackTarget } from "./backtrack-router.js";
 import { inspectRepository, generateProblemSignature } from "../phases/inspect-repo.js";
-import { createAndSaveVerifiedMemory } from "../memory/verified-memory.js";
+import { createAndSaveVerifiedMemory, promoteMemoryProvenance } from "../memory/verified-memory.js";
 import { triageExecutionPath } from "../phases/triage.js";
 
 export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
@@ -97,16 +97,24 @@ export async function triageAction(ctx: HarnessContext): Promise<NodeStatus> {
 
 export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Research;
+
+  // On-demand Check: Force research if explicitly routed here via Backtrack (e.g. EXTERNAL_SPEC error)
+  const isBacktrackToResearch = ctx.backtrackDecision?.target === BacktrackTarget.Research;
+
   const decision = routeResearch(ctx.goal);
   ctx.researchRouting = decision;
 
-  if (!decision.shouldResearch) {
-    console.log(`[Phase: Research] Skipped: ${decision.reason}`);
+  if (!isBacktrackToResearch && !decision.shouldResearch) {
+    console.log(`[Phase: Research] Skipped on-demand: ${decision.reason}`);
     return "SUCCESS";
   }
 
+  const reasonMsg = isBacktrackToResearch
+    ? `Forced on-demand research by Backtrack Router (${ctx.backtrackDecision?.failureMode})`
+    : `Detected signals: ${decision.detectedSignals.join(", ")}`;
+
   console.log(
-    `[Phase: Research] Conducting literature & prior-art survey on SOTA approaches (${decision.detectedSignals.join(", ")})...`
+    `[Phase: Research] Conducting literature & prior-art survey on SOTA approaches (${reasonMsg})...`
   );
   ctx.research = await runResearchPhase(
     { goal: ctx.goal, repoPath: ctx.worktreeManager.repoRoot },
@@ -358,6 +366,8 @@ export async function compareAction(ctx: HarnessContext): Promise<NodeStatus> {
     },
     tests: { passed: 1, failed: 0, output: "", exitCode: 0, failingTestIds: [], passingTestIds: [] },
     diagnostics: { typeErrors: [], lintErrors: [] },
+    acceptance: { tested: false, passed: true, verifiedCriteria: [], missingCriteria: [] },
+    adversarial: { tested: false, passed: true, scenarios: {}, failureReasons: [] },
     metamorphic: { tested: false, passed: true, properties: {}, failureReasons: [] },
     regressions: [],
     score: 100,
@@ -430,6 +440,20 @@ export async function cleanRoomReviewAction(ctx: HarnessContext): Promise<NodeSt
       console.log(
         `[Phase: Review] Candidate '${current.implementation.candidateId}' APPROVED by clean-room audit.`
       );
+      try {
+        const initialRecord = await createAndSaveVerifiedMemory({
+          runId: ctx.runId,
+          goal: ctx.goal,
+          repoRoot: ctx.worktreeManager.repoRoot,
+          implementation: current.implementation,
+          verification: current.verification,
+          memoryManager: ctx.memoryManager,
+          provenance: "CLEANROOM_APPROVED",
+        });
+        ctx.verifiedMemory = initialRecord;
+      } catch (err) {
+        console.warn("[Phase: Review] Warning creating initial verified memory:", err);
+      }
       return "SUCCESS";
     }
 
@@ -513,28 +537,40 @@ export async function stageIntegrationAction(ctx: HarnessContext): Promise<NodeS
   const candidateBranch = ctx.winner.implementation.branchName;
   const worktreePath = ctx.winner.implementation.worktreePath;
 
-  console.log(`[Phase: StageIntegration] Locking and verifying commit graph for candidate '${ctx.winner.implementation.candidateId}'...`);
+  console.log(`[Phase: StageIntegration] Locking and verifying multi-stage commit graph for candidate '${ctx.winner.implementation.candidateId}'...`);
 
-  // 1. Lock and record exact verified commit SHA (Invariant)
-  let verifiedSha: string;
+  // 1. Resolve Multi-stage Commit Graph: candidateSha, baseSha, integrationSha
+  let candidateSha: string;
   try {
-    verifiedSha = await ctx.worktreeManager.revParse("HEAD", worktreePath);
+    candidateSha = await ctx.worktreeManager.revParse("HEAD", worktreePath);
   } catch {
-    verifiedSha = `sha-${Date.now()}-${ctx.winner.implementation.candidateId}`;
+    candidateSha = `cand-${Date.now()}-${ctx.winner.implementation.candidateId}`;
   }
-  ctx.verifiedCommitSha = verifiedSha;
-  console.log(`[Phase: StageIntegration] Invariant Locked: verifiedCommitSha = ${ctx.verifiedCommitSha}`);
 
-  ctx.evidenceStore?.addObservation({
-    source: "integration:staging",
-    content: `Locked verified commit SHA: ${ctx.verifiedCommitSha} on branch ${candidateBranch}`,
-    iteration: ctx.iteration,
-    data: { candidateId: ctx.winner.implementation.candidateId, verifiedSha: ctx.verifiedCommitSha },
-  });
+  let baseSha: string;
+  try {
+    baseSha = await ctx.worktreeManager.revParse("HEAD", ctx.worktreeManager.repoRoot);
+  } catch {
+    baseSha = `base-${Date.now()}`;
+  }
 
-  // 2. Full Integration Verification on the exact commit
+  // 2. Attempt clean rebase onto baseSha if needed to produce integrationSha
+  let integrationSha = candidateSha;
+  try {
+    const rebaseRes = await ctx.worktreeManager.rebaseOntoBase(candidateBranch, "main", worktreePath);
+    if (rebaseRes.success && rebaseRes.integrationSha) {
+      integrationSha = rebaseRes.integrationSha;
+      console.log(`[Phase: StageIntegration] Successfully rebased candidate onto latest main. IntegrationSha=${integrationSha}`);
+    } else if (rebaseRes.error) {
+      console.warn(`[Phase: StageIntegration] Rebase notice (${rebaseRes.error}); using candidateSha directly for verification.`);
+    }
+  } catch {
+    // Non-fatal if repo is mock or not on clean git
+  }
+
+  // 3. Full Integration Verification on the exact integrationSha
   const integrationTestCommand = ctx.testCommand ?? "npm test";
-  console.log(`[Phase: StageIntegration] Running Full Integration Verification suite on ${ctx.verifiedCommitSha}...`);
+  console.log(`[Phase: StageIntegration] Running Full Integration Verification suite on integrationSha ${integrationSha}...`);
   const integrationResult = await ctx.evaluator.runVerification({
     candidateId: `integration-${ctx.winner.implementation.candidateId}`,
     worktreePath,
@@ -543,13 +579,54 @@ export async function stageIntegrationAction(ctx: HarnessContext): Promise<NodeS
 
   if (!integrationResult.hardGates.passedAll) {
     console.error(
-      `[Phase: StageIntegration] Full Integration Verification FAILED on SHA ${ctx.verifiedCommitSha}:`,
+      `[Phase: StageIntegration] Full Integration Verification FAILED on SHA ${integrationSha}:`,
       integrationResult.hardGates.failureReasons
     );
     return "FAILURE";
   }
 
-  // 3. Execution mode branching: PR Mode vs Local Mode
+  // 4. Lock Verified Commit Graph Invariants (verifiedHeadSha == integrationSha)
+  const verifiedHeadSha = integrationSha;
+  ctx.verifiedCommitSha = verifiedHeadSha;
+  ctx.commitGraph = {
+    baseSha,
+    candidateSha,
+    integrationSha,
+    verifiedHeadSha,
+  };
+  if (ctx.currentAttempt) {
+    ctx.currentAttempt.commitGraph = ctx.commitGraph;
+  }
+
+  console.log(
+    `[Phase: StageIntegration] Invariant Locked: baseSha=${baseSha.slice(0, 7)}, candidateSha=${candidateSha.slice(0, 7)}, verifiedHeadSha=${verifiedHeadSha.slice(0, 7)}`
+  );
+
+  ctx.evidenceStore?.addObservation({
+    source: "integration:staging",
+    content: `Locked multi-stage commit graph: baseSha=${baseSha}, candidateSha=${candidateSha}, verifiedHeadSha=${verifiedHeadSha}`,
+    iteration: ctx.iteration,
+    data: {
+      candidateId: ctx.winner.implementation.candidateId,
+      commitGraph: ctx.commitGraph,
+    },
+  });
+
+  // Promote verified memory to LOCAL_INTEGRATION_VERIFIED
+  if (ctx.verifiedMemory) {
+    try {
+      await promoteMemoryProvenance({
+        record: ctx.verifiedMemory,
+        newProvenance: "LOCAL_INTEGRATION_VERIFIED",
+        memoryManager: ctx.memoryManager,
+        reason: `Full Integration verification passed on SHA ${verifiedHeadSha}`,
+      });
+    } catch (err) {
+      console.warn("[Phase: StageIntegration] Memory promotion notice:", err);
+    }
+  }
+
+  // 5. Execution mode branching: PR Mode vs Local Mode
   if (ctx.targetMode === "LOCAL" || !ctx.publishPr) {
     console.log(`[Phase: StageIntegration] TargetMode=LOCAL: Applying verified candidate to workspace...`);
     const mergeResult = await ctx.worktreeManager.mergeBranch(candidateBranch);
@@ -574,23 +651,44 @@ export async function publishAction(ctx: HarnessContext): Promise<NodeStatus> {
   if (!ctx.winner) return "FAILURE";
   ctx.phase = Phase.Publish;
 
-  console.log(`[Phase: Publish] Requesting GitHub Broker to reconcile Pull Request for verified SHA: ${ctx.verifiedCommitSha}...`);
+  const verifiedHeadSha = ctx.commitGraph?.verifiedHeadSha ?? ctx.verifiedCommitSha;
+
+  console.log(`[Phase: Publish] Requesting GitHub Broker to reconcile Pull Request for verified SHA: ${verifiedHeadSha}...`);
   const pr = await ctx.githubBroker.createPullRequest({
     title: `[Autonomous Agent] ${ctx.goal}`,
     head: ctx.winner.implementation.branchName,
     base: "main",
-    body: `## Summary\nAutonomous exploration resolved goal: "${ctx.goal}".\n- Candidate Level: ${ctx.winner.implementation.level}\n- Verified Commit SHA: \`${ctx.verifiedCommitSha ?? "N/A"}\`\n- Verification Score: ${ctx.winner.verification.score.toFixed(2)}`,
+    body: `## Summary\nAutonomous exploration resolved goal: "${ctx.goal}".\n- Candidate Level: ${ctx.winner.implementation.level}\n- Base SHA: \`${ctx.commitGraph?.baseSha ?? "N/A"}\`\n- Verified Commit SHA: \`${verifiedHeadSha ?? "N/A"}\`\n- Verification Score: ${ctx.winner.verification.score.toFixed(2)}`,
   });
 
   ctx.publishedPrUrl = pr.url;
 
-  // Invariant verification check (if SHA is exposed by remote)
-  if (pr.headSha && ctx.verifiedCommitSha && pr.headSha !== ctx.verifiedCommitSha) {
-    console.warn(
-      `[Phase: Publish] Invariant warning: PR remote SHA (${pr.headSha}) diverges from verified local SHA (${ctx.verifiedCommitSha})`
-    );
-  } else {
-    console.log(`[Phase: Publish] Verified commit SHA matches PR target. Invariant strictly satisfied.`);
+  // Invariant verification check (remoteHeadSha == verifiedHeadSha)
+  if (pr.headSha) {
+    if (ctx.commitGraph) {
+      ctx.commitGraph.remoteHeadSha = pr.headSha;
+    }
+    if (verifiedHeadSha && pr.headSha !== verifiedHeadSha) {
+      console.warn(
+        `[Phase: Publish] Invariant warning: PR remote SHA (${pr.headSha}) diverges from verified local SHA (${verifiedHeadSha})`
+      );
+    } else {
+      console.log(`[Phase: Publish] Verified commit SHA matches PR target (${pr.headSha}). Invariant strictly satisfied.`);
+    }
+  }
+
+  // Promote verified memory to PR_CREATED
+  if (ctx.verifiedMemory) {
+    try {
+      await promoteMemoryProvenance({
+        record: ctx.verifiedMemory,
+        newProvenance: "PR_CREATED",
+        memoryManager: ctx.memoryManager,
+        reason: `Pull Request created on remote: ${pr.url}`,
+      });
+    } catch (err) {
+      console.warn("[Phase: Publish] Memory promotion notice:", err);
+    }
   }
 
   return "SUCCESS";
@@ -633,25 +731,30 @@ export async function learnAction(ctx: HarnessContext): Promise<NodeStatus> {
       }
     }
 
-    // Verified Memory Persistence:
+    // Verified Memory Persistence & Finalization:
     // Strictly isolate empirical, machine-validated facts from subjective model thinking
     try {
       const currentSha = ctx.repoInspection?.recentGitHistory[0]?.split(" ")[0];
-      const verifiedRecord = await createAndSaveVerifiedMemory({
-        runId: ctx.runId,
-        goal: ctx.goal,
-        repoRoot: ctx.worktreeManager.repoRoot,
-        implementation: ctx.winner.implementation,
-        verification: ctx.winner.verification,
-        memoryManager: ctx.memoryManager,
-        provenance: "MACHINE_VERIFIED",
-        validForRepoSha: currentSha,
-      });
-      ctx.verifiedMemory = verifiedRecord;
-      console.log(`[Phase: Learn] Recorded Verified Memory in SQLite FTS5: [${verifiedRecord.id}] (Confidence: ${verifiedRecord.confidence})`);
-
+      if (!ctx.verifiedMemory) {
+        const verifiedRecord = await createAndSaveVerifiedMemory({
+          runId: ctx.runId,
+          goal: ctx.goal,
+          repoRoot: ctx.worktreeManager.repoRoot,
+          implementation: ctx.winner.implementation,
+          verification: ctx.winner.verification,
+          memoryManager: ctx.memoryManager,
+          provenance: ctx.publishPr ? "PR_CREATED" : "LOCAL_INTEGRATION_VERIFIED",
+          validForRepoSha: currentSha,
+        });
+        ctx.verifiedMemory = verifiedRecord;
+        console.log(`[Phase: Learn] Recorded Verified Memory in SQLite FTS5: [${verifiedRecord.id}] (Confidence: ${verifiedRecord.confidence})`);
+      } else {
+        console.log(
+          `[Phase: Learn] Finalized Verified Memory in SQLite FTS5: [${ctx.verifiedMemory.id}] (Provenance: ${ctx.verifiedMemory.provenance}, Confidence: ${ctx.verifiedMemory.confidence})`
+        );
+      }
     } catch (err) {
-      console.warn("[Phase: Learn] Verified memory creation warning:", err);
+      console.warn("[Phase: Learn] Verified memory finalization notice:", err);
     }
 
     // Hermes-style Trajectory Export:
