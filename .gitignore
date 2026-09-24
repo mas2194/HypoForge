@@ -10,3 +10,6 @@ worktrees/
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Ephemeral agent run executions (ADR in .agent/decisions/ are kept)
+.agent/runs/
