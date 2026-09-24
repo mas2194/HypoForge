@@ -1601,10 +1601,6 @@ export function renderWebUI(): string {
       sendBtnEl.addEventListener("click", sendMessage);
       setupAutocomplete();
 
-      agentDetailDialogEl.addEventListener("click", (event) => {
-        if (event.target === agentDetailDialogEl) agentDetailDialogEl.close();
-      });
-
       document.getElementById("clear-chat-btn").addEventListener("click", () => {
         chatMessagesEl.innerHTML = "";
         renderedMessageIds.clear();
