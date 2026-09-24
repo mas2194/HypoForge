@@ -370,14 +370,17 @@ HARNESS_TEST_COMMAND="npm test"
 
 ### 実行方法
 
-解決したい目標（ゴール）を指定してハーネスを起動します：
+対話型プロンプトまたは引数指定でハーネスを起動します：
 
 ```bash
-# tsx を用いた直接実行
+# 対話型モード（プロンプトで指示を入力）
+npx tsx src/main.ts
+
+# 直接目標（ゴール）を指定して実行
 npx tsx src/main.ts "Migrate storage layer to SQLite and eliminate duplicate state"
 
 # またはビルド後の実行
-node dist/main.js "Refactor caching module to support TTL and cache stampsede prevention"
+node dist/main.js
 ```
 
 実行中、`my_harness` は以下のフローを自律的に進行します：

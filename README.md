@@ -368,14 +368,17 @@ HARNESS_TEST_COMMAND="npm test"
 
 ### Usage
 
-Run the harness against a specific engineering objective:
+Run the harness interactively or against a specific engineering objective:
 
 ```bash
-# Execute via tsx
+# Interactive mode (prompts for goal)
+npx tsx src/main.ts
+
+# Directly pass an objective
 npx tsx src/main.ts "Migrate storage layer to SQLite and eliminate duplicate state"
 
 # Or after building
-node dist/main.js "Refactor caching module to support TTL and cache stampsede prevention"
+node dist/main.js
 ```
 
 During execution, `my_harness` will:
