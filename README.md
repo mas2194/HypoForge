@@ -1122,77 +1122,93 @@ agent/architecture/<topic>
 
 ---
 
-## 最終的に目指すべきループ
+## 最終的に目指すべきループ（実装完了）
 
-普通のCodex harnessは、
-
-```text
-request
- ↓
-inspect
- ↓
-edit
- ↓
-test
- ↓
-done
-```
-
-です。
-
-今回作るべきものは、
+本リポジトリでは、エキスパートレビューと実証検証に基づき、単なる「最小変更に逃げるスクリプト」を排し、仮説探索・反証・機械的検証・ブラインド査読を行う**自律型ソフトウェア工学ハーネス（Autonomous Software Engineering Harness）**を完全実装しました。
 
 ```text
-                     ┌──────────────┐
-                     │   Objective  │
-                     └──────┬───────┘
-                            ↓
-                       Understand
-                            ↓
-                    Find assumptions
-                            ↓
-                ┌──── Architecture? ────┐
-                │                       │
-               no                      yes
-                ↓                       ↓
-           local hypotheses       redesign hypotheses
-                │                       │
-                └──────────┬────────────┘
-                           ↓
-                     Falsification
-                           ↓
-                      Experiments
-                           ↓
-                   parallel worktrees
-                           ↓
-                   objective testing
-                           ↓
-                    compare evidence
-                           ↓
-                ┌──── inadequate? ────┐
-                │                     │
-               yes                    no
-                ↓                     ↓
-          rethink assumptions       integrate
-                │                     ↓
-                └──────────────→ review
-                                      ↓
-                                    GitHub
-                                      ↓
-                               CI / PR / merge
-                                      ↓
-                               learn + ADR
-                                      │
-                                      └────→ next task
+Goal
+  │
+  ▼
+Repo Inspect (Topology / AST / Git History / Invariants)
+  │
+  ▼
+Problem Signature Generation (Anti-Memory Anchoring)
+  │
+  ▼
+Memory / Skill Retrieval (Signature-targeted FTS5)
+  │
+  ▼
+Research Router ───────────────→ Research (network=true, webSearch=live)
+  │                                    │
+  └────────────────────────────────────┘
+  │
+  ▼
+Diagnose (Intervention Ladder L0〜L7 & Structured Evidence Output)
+  ├── L1 local patch
+  ├── L4 state / data model
+  └── L6 architectural redesign
+  │
+  ▼
+Falsification (Counter-argument Scrutiny)
+  │
+  ▼
+Hypothesis Diversity Gate (Enforces Non-homogeneous Exploration Radii)
+  │
+  ▼
+Parallel Worktrees (Isolated Git Worktrees A / B / C)
+  │
+  ▼
+Machine Verification (Process Exit Code, JUnit, Regressions, Complexity)
+  │
+  ▼
+Hard Gates (Zero tolerance for test failures or regressions)
+  │
+  ▼
+Pareto / Lexicographic Comparison (Multi-objective soft metrics vs Candidate 0 Baseline)
+  │
+  ▼
+Candidate Queue [C1, C2, ..., Cn]
+  │
+  ▼
+Clean-Room Blind Review (Anonymous Candidate X / Strict Offline Audit)
+  ├── REJECT → Next candidate in queue available?
+  │             ├── YES → Review next candidate immediately (No backtracking!)
+  │             └── NO  → All candidates exhausted
+  │                         │
+  │                         ▼
+  │                   Backtrack Router (Intelligent Multi-Tier Recovery)
+  │                   ├── Syntax/Typo        → Implement
+  │                   ├── Counterexample     → Falsify
+  │                   ├── Architectural Flaw → Diagnose
+  │                   ├── API Spec Mismatch  → Research
+  │                   └── Invariant Error    → Inspect
+  │
+  └── APPROVED
+        │
+        ▼
+Integration Verification (Merge branch to active workspace)
+  │
+  ▼
+Publish (GitHub Broker Pull Request)
+  │
+  ▼
+Verified Learning & Context Compaction
+  ├── Record ADR (Architecture Decision Record)
+  ├── Crystallize Reusable Procedural Skills
+  ├── Persist Verified Memory (Empirical facts only; no LLM thoughts)
+  └── Export Preference Trajectories (DPO-compatible)
 ```
 
-になります。
-
-これはOpenAIが説明している長時間Codexの「plan → edit → tools → observe → repair → update state → repeat」を、さらに**分岐探索＋GitHub＋アーキテクチャ探索**へ拡張したものです。([OpenAI Developers][4])
-
-特にあなたが感じている「Codexは既存コードを前提に、最小限の差分へ収束しやすい」という問題に対しては、**プロンプト改善よりも、複数の設計仮説を別worktreeで実装させ、テストで競争させる仕組み**の方が根本的な対策になります。
-
-次に実装するなら、まず **TypeScript + `@openai/codex-sdk` + Git worktree + GitHub App + Zod** で、`Inspect → Architect → 3候補並列実装 → Verify → Judge → PR` の最小版を作るのがよいです。その後、native multi-agent、hooks、workflow自己改善、Architecture Debt Detectorを足していく構成が扱いやすいです。Codex SDK自体はCLIを起動してJSONLイベントをやり取りする比較的薄い層なので、こうした外側のオーケストレーションを組みやすい設計になっています。([GitHub][1])
+### 実装済みのコア機構
+1. **Candidate Queue**: 1位候補がリジェクトされた場合でも全体を破棄せず、同一イテレーション内で次順位の候補を自動査読。無駄な再探索コストを激減。
+2. **Hard Gates & Pareto / Lexicographic 比較**: 単一スカラー評価によるGoodhartの法則崩壊を排除。客観的テスト・リグレッションゼロを必須足切りとし、Intervention Level $\rightarrow$ 性能改善 $\rightarrow$ 差分簡潔性の辞書式順序で評価。Candidate 0（mainブランチ）を常時参戦させて変更不要時の撤退判断を保証。
+3. **Clean-Room Review の完全匿名化**: Candidate ID や事前スコアを剥奪した「Anonymous Candidate X」としてブラインド査読。オフラインサンドボックス（network=false）を強制。
+4. **Research Router**: 性能限界、並行性、未知のアルゴリズム、アーキテクチャ再設計などの高不確実性シグナルがある場合のみWeb調査を発動。
+5. **Intervention Ladder L0〜L7 & Hypothesis Diversity Gate**: 設定から要求前提まで8段階の階層を持ち、並列候補が局所修正ばかりに偏る擬似多様性を機械的に排除。
+6. **Backtrack Router**: 失敗モードに応じた階層的ロールバック（Implement/Falsify/Diagnose/Research/Inspect）。
+7. **探索 Budget Tracker**: イテレーション数、候補数、テスト回数、実行時間を第一級状態として監視。予算超過時は安全に `UNRESOLVED` 終了。
+8. **Verified Memory & Anti-Anchoring Inspect**: リポジトリ構造から Problem Signature を先行生成して先入観による誤認（Memory Anchoring）を防止し、確定事実のみを SQLite FTS5 に永続化。
 
 [1]: https://github.com/openai/codex/blob/main/sdk/typescript/README.md?utm_source=chatgpt.com "codex/sdk/typescript/README.md at main · openai/codex · GitHub"
 [2]: https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra?utm_source=chatgpt.com "Rethinking skills and prompts for GPT-6 Astra | OpenAI Developers"

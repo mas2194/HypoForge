@@ -10,6 +10,8 @@ import { buildHarnessBehaviorTree } from "./tree.js";
 import type { BTNode, NodeStatus } from "../bt/types.js";
 import { Phase, type HarnessContext } from "./context.js";
 
+import { BudgetTracker, type BudgetLimits } from "../budget/tracker.js";
+
 export interface OrchestratorOptions {
   goal: string;
   repoRoot?: string;
@@ -17,6 +19,7 @@ export interface OrchestratorOptions {
   useCodex?: boolean;
   publishPr?: boolean;
   maxExplorationAttempts?: number;
+  budgetLimits?: Partial<BudgetLimits>;
   enableTracing?: boolean;
   dbPath?: string;
 }
@@ -49,6 +52,8 @@ export class HarnessOrchestrator {
       }
     }
 
+    const budgetTracker = new BudgetTracker(options.budgetLimits);
+
     this.context = {
       goal: options.goal,
       runId,
@@ -65,10 +70,13 @@ export class HarnessOrchestrator {
       githubBroker,
       codexManager,
       compactor: new ContextCompactor(),
+      budgetTracker,
       recalledMemories: [],
       activeSkills: [],
       implementations: [],
       verifications: [],
+      candidateQueue: [],
+      rejectedCandidates: [],
       iteration: 1,
       rejectionFeedbacks: [],
       distilledLessons: [],

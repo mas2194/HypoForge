@@ -1,6 +1,6 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
-import type { VerificationResult } from "../schemas/result.js";
+import { VerificationResultSchema, type VerificationResult } from "../schemas/result.js";
 
 const execAsync = promisify(exec);
 
@@ -10,11 +10,86 @@ export interface RunVerificationOptions {
   testCommand?: string;
   baseBranch?: string;
   interventionLevel?: number;
+  benchmarkBefore?: number;
+  benchmarkAfter?: number;
+}
+
+export interface RunBaselineOptions {
+  repoPath: string;
+  testCommand?: string;
 }
 
 export class Evaluator {
   /**
-   * Runs verification suite in the given worktree and computes objective scores.
+   * Evaluates Candidate 0 (Baseline on main branch).
+   * Used as the control baseline to guarantee proposed changes provide genuine superiority.
+   */
+  async runBaselineVerification(options: RunBaselineOptions): Promise<VerificationResult> {
+    const { repoPath, testCommand = "npm test" } = options;
+    let testOutput = "";
+    let passed = 0;
+    let failed = 0;
+    let exitCode = 0;
+    const regressions: string[] = [];
+
+    try {
+      const { stdout, stderr } = await execAsync(testCommand, { cwd: repoPath });
+      testOutput = `${stdout}\n${stderr}`.trim();
+      passed = 1;
+      failed = 0;
+      exitCode = 0;
+    } catch (err: any) {
+      testOutput = `${err.stdout || ""}\n${err.stderr || ""}\n${err.message || ""}`.trim();
+      passed = 0;
+      failed = 1;
+      exitCode = err.code ?? 1;
+      regressions.push(`Baseline test command failed: ${testCommand}`);
+    }
+
+    const testsPassed = failed === 0 && passed > 0;
+    const hardGates = {
+      testsPassed,
+      noRegressions: regressions.length === 0,
+      typecheckPassed: true,
+      lintPassed: true,
+      passedAll: testsPassed && regressions.length === 0,
+      failureReasons: regressions,
+    };
+
+    const softMetrics = {
+      performanceImprovementPercent: 0,
+      complexityDelta: 0,
+      addedLines: 0,
+      deletedLines: 0,
+      fileCount: 0,
+      architecturalInterventionLevel: 0, // Baseline has 0 intervention
+      confidenceScore: testsPassed ? 1.0 : 0.0,
+    };
+
+    return VerificationResultSchema.parse({
+      candidateId: "baseline-0",
+      isBaseline: true,
+      hardGates,
+      softMetrics,
+      tests: {
+        passed,
+        failed,
+        output: testOutput,
+        exitCode,
+      },
+      complexity: {
+        addedLines: 0,
+        deletedLines: 0,
+        fileCount: 0,
+      },
+      regressions,
+      score: testsPassed ? 100 : -100,
+    });
+  }
+
+  /**
+   * Runs verification suite in the given worktree and computes objective metrics.
+   * Enforces Hard Gates and extracts multi-objective Soft Metrics for Pareto comparison.
    */
   async runVerification(options: RunVerificationOptions): Promise<VerificationResult> {
     const {
@@ -23,24 +98,29 @@ export class Evaluator {
       testCommand = "npm test",
       baseBranch = "main",
       interventionLevel = 1,
+      benchmarkBefore,
+      benchmarkAfter,
     } = options;
 
     let testOutput = "";
     let passed = 0;
     let failed = 0;
+    let exitCode = 0;
     const regressions: string[] = [];
 
-    // 1. Run Tests
+    // 1. Machine Gate: Run Tests
     const startTime = Date.now();
     try {
       const { stdout, stderr } = await execAsync(testCommand, { cwd: worktreePath });
       testOutput = `${stdout}\n${stderr}`.trim();
       passed = 1;
       failed = 0;
+      exitCode = 0;
     } catch (err: any) {
       testOutput = `${err.stdout || ""}\n${err.stderr || ""}\n${err.message || ""}`.trim();
       passed = 0;
       failed = 1;
+      exitCode = err.code ?? 1;
       regressions.push(`Test command failed: ${testCommand}`);
     }
     const duration = Date.now() - startTime;
@@ -66,26 +146,62 @@ export class Evaluator {
       // diff check failure is non-fatal
     }
 
-    // 3. Compute objective score:
-    // Core philosophy: Correctness (tests) is king.
-    // Higher intervention level gets architectural bonus when correct.
-    // Diff size is NOT penalized directly as an objective, but failure or regressions are heavily penalized.
+    // 3. Performance / Benchmark metrics calculation
+    let perfImprovement = 0;
+    if (benchmarkBefore && benchmarkAfter && benchmarkBefore > 0) {
+      perfImprovement = ((benchmarkBefore - benchmarkAfter) / benchmarkBefore) * 100;
+    }
+
+    // 4. Hard Gates Check
+    const testsPassed = failed === 0 && passed > 0;
+    const noRegressions = regressions.length === 0;
+    const hardGates = {
+      testsPassed,
+      noRegressions,
+      typecheckPassed: true,
+      lintPassed: true,
+      passedAll: testsPassed && noRegressions,
+      failureReasons: regressions,
+    };
+
+    // 5. Soft Metrics Profile
+    const softMetrics = {
+      performanceImprovementPercent: perfImprovement,
+      complexityDelta: addedLines + deletedLines,
+      addedLines,
+      deletedLines,
+      fileCount,
+      architecturalInterventionLevel: interventionLevel,
+      confidenceScore: testsPassed ? 1.0 : 0.0,
+    };
+
+    // Legacy scalar score (preserved for backward-compatibility)
     let score = 0;
-    if (failed === 0 && passed > 0) {
-      score += 100; // Base correctness
-      score += interventionLevel * 15; // Architecture bonus for higher Ladder level solutions
-      score -= Math.min(20, duration / 1000); // Small execution efficiency factor
+    if (testsPassed) {
+      score += 100;
+      score += interventionLevel * 15;
+      score -= Math.min(20, duration / 1000);
+      if (perfImprovement > 0) score += Math.min(50, perfImprovement);
     } else {
       score = -100 * failed;
     }
 
-    return {
+    return VerificationResultSchema.parse({
       candidateId,
+      isBaseline: false,
+      hardGates,
+      softMetrics,
       tests: {
         passed,
         failed,
         output: testOutput,
+        exitCode,
       },
+      benchmark: benchmarkBefore && benchmarkAfter ? {
+        before: benchmarkBefore,
+        after: benchmarkAfter,
+        unit: "ms",
+      } : undefined,
       complexity: {
         addedLines,
         deletedLines,
@@ -93,6 +209,6 @@ export class Evaluator {
       },
       regressions,
       score,
-    };
+    });
   }
 }

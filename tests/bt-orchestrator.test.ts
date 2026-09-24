@@ -50,6 +50,7 @@ describe("HarnessOrchestrator (Behavior Tree)", () => {
     expect(executedNodeNames).toContain("Research");
     expect(executedNodeNames).toContain("Diagnose");
     expect(executedNodeNames).toContain("Falsify");
+    expect(executedNodeNames).toContain("DiversityGate");
     expect(executedNodeNames).toContain("Implement");
     expect(executedNodeNames).toContain("Verify");
     expect(executedNodeNames).toContain("Compare");
@@ -64,25 +65,25 @@ describe("HarnessOrchestrator (Behavior Tree)", () => {
     }
   });
 
-  it("should backtrack to Diagnose when Clean-Room Review rejects on attempt 1", async () => {
+  it("should approve next candidate in candidate queue without backtracking when first candidate is rejected", async () => {
     let reviewCallCount = 0;
     const reviewSpy = vi.spyOn(reviewPhase, "runCleanRoomReviewPhase").mockImplementation(async () => {
       reviewCallCount++;
       if (reviewCallCount === 1) {
-        // First attempt: reject with a blocking issue
+        // First candidate in queue: reject
         return {
           approved: false,
           blockingIssues: ["Critical lock contention hazard detected in lock-free eviction queue"],
           suggestions: ["Replace spinlock with atomic CAS exchange"],
-          feedback: "Rejected due to concurrency hazard.",
+          feedback: "Rejected first candidate due to concurrency hazard.",
         };
       }
-      // Second attempt: approve
+      // Second candidate in queue: approve
       return {
         approved: true,
         blockingIssues: [],
         suggestions: ["Good atomic safety"],
-        feedback: "Clean-room review passed after addressing concurrency hazard.",
+        feedback: "Clean-room review passed for second candidate.",
       };
     });
 
@@ -100,10 +101,59 @@ describe("HarnessOrchestrator (Behavior Tree)", () => {
       createdAdr = finalState.adrFilename ?? null;
 
       expect(finalState.finished).toBe(true);
+      // Both candidates were reviewed in the same iteration without backtracking
       expect(reviewCallCount).toBe(2);
-      expect(finalState.iteration).toBe(2);
+      expect(finalState.iteration).toBe(1);
+      expect(finalState.rejectedCandidates.length).toBe(1);
       expect(finalState.rejectionFeedbacks.length).toBeGreaterThanOrEqual(1);
       expect(finalState.rejectionFeedbacks[0]).toContain("Critical lock contention hazard detected");
+      expect(finalState.winner).toBeDefined();
+      expect(finalState.adrFilename).toBeDefined();
+    } finally {
+      reviewSpy.mockRestore();
+    }
+  });
+
+  it("should backtrack to Diagnose when all candidates in candidate queue are rejected", async () => {
+    let reviewCallCount = 0;
+    const reviewSpy = vi.spyOn(reviewPhase, "runCleanRoomReviewPhase").mockImplementation(async () => {
+      reviewCallCount++;
+      if (reviewCallCount <= 2) {
+        // Iteration 1: reject both candidate 1 and candidate 2
+        return {
+          approved: false,
+          blockingIssues: [`Rejection issue #${reviewCallCount}`],
+          suggestions: ["Revise architecture"],
+          feedback: "Rejected.",
+        };
+      }
+      // Iteration 2: approve
+      return {
+        approved: true,
+        blockingIssues: [],
+        suggestions: ["Clean design"],
+        feedback: "Approved on iteration 2.",
+      };
+    });
+
+    try {
+      const orchestrator = new HarnessOrchestrator({
+        goal: "Refactor cache eviction queue for concurrent multi-thread access",
+        testCommand: "node -e 'process.exit(0)'",
+        useCodex: false,
+        publishPr: false,
+        maxExplorationAttempts: 2,
+      });
+
+      const finalState = await orchestrator.runUntilFinished();
+      createdRunId = finalState.runId;
+      createdAdr = finalState.adrFilename ?? null;
+
+      expect(finalState.finished).toBe(true);
+      expect(reviewCallCount).toBe(3);
+      expect(finalState.iteration).toBe(2);
+      expect(finalState.backtrackDecision).toBeDefined();
+      expect(finalState.rejectionFeedbacks.length).toBeGreaterThanOrEqual(2);
       expect(finalState.winner).toBeDefined();
       expect(finalState.adrFilename).toBeDefined();
     } finally {

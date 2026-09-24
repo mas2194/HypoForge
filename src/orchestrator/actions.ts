@@ -8,6 +8,11 @@ import { runImplementPhase } from "../phases/implement.js";
 import { runCleanRoomReviewPhase } from "../phases/review.js";
 import type { CandidateImplementation } from "../schemas/candidate.js";
 import type { VerificationResult } from "../schemas/result.js";
+import { routeResearch } from "../phases/research-router.js";
+import { evaluateDiversity, enforceDiversity } from "../phases/diversity-gate.js";
+import { routeBacktrack } from "./backtrack-router.js";
+import { inspectRepository, generateProblemSignature } from "../phases/inspect-repo.js";
+import { createAndSaveVerifiedMemory } from "../memory/verified-memory.js";
 
 export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Inspect;
@@ -18,11 +23,24 @@ export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
     repoRoot: ctx.worktreeManager.repoRoot,
   });
 
-  // Hermes-style Memory Retrieval: Recall historical ADRs, rejections, and learnings
-  ctx.recalledMemories = ctx.memoryManager.searchMemories(ctx.goal, 3);
+  // Step 1: Pre-Memory Repository Inspection (Structure, Invariants, Git history)
+  console.log(`[Phase: Inspect] Inspecting repository topology and invariants prior to memory retrieval...`);
+  ctx.repoInspection = await inspectRepository(ctx.worktreeManager.repoRoot);
+  console.log(
+    `[Phase: Inspect] Topology inspected: ${ctx.repoInspection.targetSubsystems.length} subsystem(s), ${ctx.repoInspection.recentGitHistory.length} recent commits.`
+  );
+
+  // Step 2: Problem Signature Generation (Prevents Memory Anchoring)
+  ctx.problemSignature = generateProblemSignature(ctx.goal, ctx.repoInspection);
+  console.log(
+    `[Phase: Inspect] Generated problem signature: domain='${ctx.problemSignature.domain}', searchTerms='${ctx.problemSignature.searchTerms}'`
+  );
+
+  // Step 3: Targeted Memory Retrieval based on Problem Signature
+  ctx.recalledMemories = ctx.memoryManager.searchMemories(ctx.problemSignature.searchTerms, 3);
   if (ctx.recalledMemories.length > 0) {
     console.log(
-      `[Phase: Inspect] Recalled ${ctx.recalledMemories.length} historical memory item(s) from SQLite FTS5:`
+      `[Phase: Inspect] Recalled ${ctx.recalledMemories.length} historical memory item(s) from SQLite FTS5 (Signature-targeted):`
     );
     for (const mem of ctx.recalledMemories) {
       console.log(`  - [${mem.type.toUpperCase()}] ${mem.title}`);
@@ -45,7 +63,17 @@ export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
 
 export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Research;
-  console.log(`[Phase: Research] Conducting literature & prior-art survey on SOTA approaches...`);
+  const decision = routeResearch(ctx.goal);
+  ctx.researchRouting = decision;
+
+  if (!decision.shouldResearch) {
+    console.log(`[Phase: Research] Skipped: ${decision.reason}`);
+    return "SUCCESS";
+  }
+
+  console.log(
+    `[Phase: Research] Conducting literature & prior-art survey on SOTA approaches (${decision.detectedSignals.join(", ")})...`
+  );
   ctx.research = await runResearchPhase(
     { goal: ctx.goal, repoPath: ctx.worktreeManager.repoRoot },
     ctx.codexManager
@@ -122,12 +150,47 @@ export async function falsifyAction(ctx: HarnessContext): Promise<NodeStatus> {
   return "SUCCESS";
 }
 
+export async function diversityGateAction(ctx: HarnessContext): Promise<NodeStatus> {
+  const candidates = ctx.falsifiedCandidates ?? ctx.diagnosis?.candidates ?? [];
+  if (candidates.length === 0) {
+    return "FAILURE";
+  }
+
+  const evalResult = evaluateDiversity(candidates);
+  ctx.diversityEvaluation = evalResult;
+
+  if (evalResult.passed) {
+    console.log(`[Phase: DiversityGate] ${evalResult.reason}`);
+    return "SUCCESS";
+  }
+
+  console.warn(`[Phase: DiversityGate] Insufficient candidate diversity: ${evalResult.reason}`);
+  console.log(`[Phase: DiversityGate] Enforcing architectural diversity across candidates...`);
+
+  ctx.falsifiedCandidates = enforceDiversity(candidates);
+  const reEval = evaluateDiversity(ctx.falsifiedCandidates);
+  ctx.diversityEvaluation = reEval;
+  console.log(`[Phase: DiversityGate] Diversity enforced: ${reEval.reason}`);
+  return "SUCCESS";
+}
+
 export async function implementAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Implement;
   const candidates = ctx.falsifiedCandidates ?? ctx.diagnosis?.candidates ?? [];
   if (candidates.length === 0) {
     return "FAILURE";
   }
+
+  // Budget tracking: register new candidates
+  ctx.budgetTracker.recordCandidates(candidates.length);
+  const budgetStatus = ctx.budgetTracker.checkBudget();
+  if (budgetStatus.exhausted) {
+    console.warn(`[BT:Budget] Exploration halted by budget limit: ${budgetStatus.reason}`);
+    ctx.unresolved = true;
+    ctx.unresolvedReason = budgetStatus.reason;
+    return "FAILURE";
+  }
+
   console.log(`[Phase: Implement] Spawning parallel worktrees for ${candidates.length} candidate(s)...`);
   ctx.implementations = await runImplementPhase({
     candidates,
@@ -140,6 +203,8 @@ export async function implementAction(ctx: HarnessContext): Promise<NodeStatus> 
   console.log(`[Phase: Implement] Finished implementations in isolated worktrees.`);
   return "SUCCESS";
 }
+
+import { compareWithPareto } from "../evaluator/pareto.js";
 
 export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Verify;
@@ -156,7 +221,20 @@ export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
     }
   }
 
+  // 1. Evaluate Candidate 0 (main branch baseline)
+  ctx.budgetTracker.recordTestRun();
+  const baselineResult = await ctx.evaluator.runBaselineVerification({
+    repoPath: ctx.worktreeManager.repoRoot,
+    testCommand: effectiveTestCommand,
+  });
+  ctx.baselineVerification = baselineResult;
+  console.log(
+    `  - Candidate 0 [Baseline main]: hardGates=${baselineResult.hardGates.passedAll ? "PASS" : "FAIL"}, passed=${baselineResult.tests.passed}, failed=${baselineResult.tests.failed}`
+  );
+
+  // 2. Evaluate all worktree candidates
   for (const impl of ctx.implementations) {
+    ctx.budgetTracker.recordTestRun();
     const levelMultiplier = impl.level === "redesign" ? 3 : impl.level === "subsystem" ? 2 : 1;
     const result = await ctx.evaluator.runVerification({
       candidateId: impl.candidateId,
@@ -166,85 +244,178 @@ export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
     });
     ctx.verifications.push(result);
     console.log(
-      `  - Candidate ${impl.candidateId} (${impl.level}): score=${result.score.toFixed(2)}, passed=${result.tests.passed}, failed=${result.tests.failed}`
+      `  - Candidate ${impl.candidateId} (${impl.level}): hardGates=${result.hardGates.passedAll ? "PASS" : "FAIL"}, passed=${result.tests.passed}, failed=${result.tests.failed}, lines=+${result.softMetrics.addedLines}/-${result.softMetrics.deletedLines}`
     );
   }
 
-  await ctx.memoryManager.saveArtifact(ctx.runId, "results.json", ctx.verifications);
+  await ctx.memoryManager.saveArtifact(ctx.runId, "results.json", {
+    baseline: ctx.baselineVerification,
+    candidates: ctx.verifications,
+  });
   return "SUCCESS";
 }
 
 export async function compareAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Compare;
-  console.log(`[Phase: Compare] Ranking candidates based on objective evidence (score & ladder level)...`);
-  let bestScore = -Infinity;
-  let bestWinner: { implementation: CandidateImplementation; verification: VerificationResult } | undefined;
+  console.log(`[Phase: Compare] Performing Hard-Gate filtering and Pareto / Lexicographic comparison...`);
 
-  for (const verification of ctx.verifications) {
-    const impl = ctx.implementations.find((i) => i.candidateId === verification.candidateId);
-    if (impl && verification.score > bestScore) {
-      bestScore = verification.score;
-      bestWinner = { implementation: impl, verification };
+  const candidatesWithImpl = ctx.implementations
+    .map((impl) => {
+      const verification = ctx.verifications.find((v) => v.candidateId === impl.candidateId);
+      return verification ? { implementation: impl, verification } : null;
+    })
+    .filter((c): c is { implementation: CandidateImplementation; verification: VerificationResult } => Boolean(c));
+
+  const baseline = ctx.baselineVerification ?? {
+    candidateId: "baseline-0",
+    isBaseline: true,
+    hardGates: {
+      testsPassed: true,
+      noRegressions: true,
+      typecheckPassed: true,
+      lintPassed: true,
+      passedAll: true,
+      failureReasons: [],
+    },
+    softMetrics: {
+      performanceImprovementPercent: 0,
+      complexityDelta: 0,
+      addedLines: 0,
+      deletedLines: 0,
+      fileCount: 0,
+      architecturalInterventionLevel: 0,
+      confidenceScore: 1.0,
+    },
+    tests: { passed: 1, failed: 0, output: "", exitCode: 0 },
+    regressions: [],
+    score: 100,
+  };
+
+  const pareto = compareWithPareto(candidatesWithImpl, baseline);
+  ctx.paretoComparison = pareto;
+  ctx.candidateQueue = pareto.rankedQueue;
+
+  if (pareto.disqualified.length > 0) {
+    console.warn(`[Phase: Compare] Hard Gates disqualified ${pareto.disqualified.length} candidate(s):`);
+    for (const dis of pareto.disqualified) {
+      console.warn(`    - ${dis.candidate.implementation.candidateId}: ${dis.reasons.join(", ")}`);
     }
   }
 
-  if (bestWinner && bestWinner.verification.tests.failed === 0) {
-    ctx.winner = bestWinner;
+  if (pareto.rankedQueue.length > 0) {
+    ctx.winner = pareto.rankedQueue[0];
     console.log(
-      `[Phase: Compare] Winner candidate selected: ${bestWinner.implementation.candidateId} (score: ${bestWinner.verification.score.toFixed(2)})`
+      `[Phase: Compare] ${pareto.summary} Leading candidate: '${ctx.winner.implementation.candidateId}' (${ctx.winner.implementation.level})`
     );
+    await ctx.memoryManager.saveArtifact(ctx.runId, "pareto-ranking.json", pareto);
     return "SUCCESS";
   } else {
-    console.log(`[Phase: Compare] No candidate passed verification without errors.`);
-    ctx.rejectionFeedbacks.push("No candidate implementation passed the test suite without failures.");
+    console.log(`[Phase: Compare] No candidate passed Hard Gates or outperformed baseline.`);
+    ctx.rejectionFeedbacks.push("No candidate implementation cleared Hard Gates or improved upon baseline.");
     return "FAILURE";
   }
 }
 
 export async function cleanRoomReviewAction(ctx: HarnessContext): Promise<NodeStatus> {
-  if (!ctx.winner) {
-    return "FAILURE";
+  if (!ctx.candidateQueue || ctx.candidateQueue.length === 0) {
+    if (ctx.winner) {
+      ctx.candidateQueue = [ctx.winner];
+    } else {
+      return "FAILURE";
+    }
   }
+
   ctx.phase = Phase.Review;
-  console.log(`[Phase: Review] Launching clean-room audit without conversational context...`);
-  ctx.review = await runCleanRoomReviewPhase(
-    {
-      goal: ctx.goal,
-      implementation: ctx.winner.implementation,
-      verification: ctx.winner.verification,
-      repoPath: ctx.worktreeManager.repoRoot,
-    },
-    ctx.codexManager
-  );
 
-  await ctx.memoryManager.saveArtifact(ctx.runId, "review.json", ctx.review);
+  // Process candidates in queue sequentially until one is APPROVED
+  while (ctx.candidateQueue.length > 0) {
+    const current = ctx.candidateQueue[0];
+    ctx.winner = current;
 
-  if (ctx.review.approved) {
-    console.log(`[Phase: Review] Clean-room audit APPROVED the changes.`);
-    return "SUCCESS";
-  } else {
-    console.warn(`[Phase: Review] Clean-room audit REJECTED changes:`, ctx.review.blockingIssues);
-    return "FAILURE";
+    console.log(
+      `[Phase: Review] Launching clean-room blind audit for anonymous candidate (queue depth: ${ctx.candidateQueue.length})...`
+    );
+
+    const review = await runCleanRoomReviewPhase(
+      {
+        goal: ctx.goal,
+        implementation: current.implementation,
+        verification: current.verification,
+        repoPath: ctx.worktreeManager.repoRoot,
+      },
+      ctx.codexManager
+    );
+
+    ctx.review = review;
+    await ctx.memoryManager.saveArtifact(
+      ctx.runId,
+      `review-${current.implementation.candidateId}.json`,
+      review
+    );
+    await ctx.memoryManager.saveArtifact(ctx.runId, "review.json", review);
+
+    if (review.approved) {
+      console.log(
+        `[Phase: Review] Candidate '${current.implementation.candidateId}' APPROVED by clean-room audit.`
+      );
+      return "SUCCESS";
+    }
+
+    console.warn(
+      `[Phase: Review] Candidate '${current.implementation.candidateId}' REJECTED by clean-room audit:`,
+      review.blockingIssues
+    );
+
+    // Record rejected candidate & feedback
+    ctx.rejectedCandidates.push({
+      candidate: current,
+      blockingIssues: review.blockingIssues,
+    });
+    for (const issue of review.blockingIssues) {
+      ctx.rejectionFeedbacks.push(`Clean-room review rejected candidate ${current.implementation.candidateId}: ${issue}`);
+      ctx.memoryManager.recordRejectionFeedback(
+        ctx.runId,
+        current.implementation.candidateId,
+        issue
+      );
+    }
+
+    // Pop the rejected candidate from the queue
+    ctx.candidateQueue.shift();
+
+    if (ctx.candidateQueue.length > 0) {
+      console.log(
+        `[Phase: Review] Falling back to next candidate in queue: '${ctx.candidateQueue[0].implementation.candidateId}'`
+      );
+    }
   }
+
+  // All candidates in the queue were rejected
+  console.warn(`[Phase: Review] All candidates in queue were rejected by clean-room audit.`);
+  ctx.winner = undefined;
+  return "FAILURE";
 }
 
 export async function captureRejectionFeedbackAction(ctx: HarnessContext): Promise<NodeStatus> {
-  if (ctx.review && !ctx.review.approved && ctx.review.blockingIssues.length > 0) {
-    for (const issue of ctx.review.blockingIssues) {
-      ctx.rejectionFeedbacks.push(`Clean-room review rejected candidate: ${issue}`);
-      // Record rejection in SQLite FTS5 memory
-      if (ctx.winner) {
-        ctx.memoryManager.recordRejectionFeedback(
-          ctx.runId,
-          ctx.winner.implementation.candidateId,
-          issue
-        );
-      }
-    }
+  const rejectedCount = ctx.rejectedCandidates.length;
+  if (rejectedCount > 0) {
     console.log(
-      `[BT:Self-Healing] Captured ${ctx.review.blockingIssues.length} review blocking issue(s) for next exploration iteration and indexed in memory.`
+      `[BT:Self-Healing] Captured feedback from ${rejectedCount} rejected candidate(s) for next exploration iteration and indexed in memory.`
     );
   }
+
+  // Analyze failure patterns and determine intelligent backtrack recovery target
+  const allRejectionReasons = [
+    ...ctx.rejectionFeedbacks,
+    ...(ctx.review?.blockingIssues ?? []),
+  ];
+  const decision = routeBacktrack(allRejectionReasons);
+  ctx.backtrackDecision = decision;
+
+  console.log(
+    `[BT:BacktrackRouter] Diagnosed failure mode: '${decision.failureMode}' -> Routing recovery to [Phase: ${decision.target}]`
+  );
+  console.log(`[BT:BacktrackRouter] Action: ${decision.recommendedAction}`);
 
   // Clean worktrees to prepare for retry
   try {
@@ -328,6 +499,23 @@ export async function learnAction(ctx: HarnessContext): Promise<NodeStatus> {
       }
     }
 
+    // Verified Memory Persistence:
+    // Strictly isolate empirical, machine-validated facts from subjective model thinking
+    try {
+      const verifiedRecord = await createAndSaveVerifiedMemory({
+        runId: ctx.runId,
+        goal: ctx.goal,
+        repoRoot: ctx.worktreeManager.repoRoot,
+        implementation: ctx.winner.implementation,
+        verification: ctx.winner.verification,
+        memoryManager: ctx.memoryManager,
+      });
+      ctx.verifiedMemory = verifiedRecord;
+      console.log(`[Phase: Learn] Recorded Verified Memory in SQLite FTS5: [${verifiedRecord.id}] (Confidence: ${verifiedRecord.confidence})`);
+    } catch (err) {
+      console.warn("[Phase: Learn] Verified memory creation warning:", err);
+    }
+
     // Hermes-style Trajectory Export:
     // Save run trajectory and candidate preference pairs (DPO-compatible)
     try {
@@ -346,7 +534,9 @@ export async function learnAction(ctx: HarnessContext): Promise<NodeStatus> {
     review: ctx.review,
     adr: ctx.adrFilename,
     crystallizedSkill: ctx.crystallizedSkill?.id,
+    verifiedMemory: ctx.verifiedMemory?.id,
     trajectory: ctx.exportedTrajectoryPath,
+    budgetUsage: ctx.budgetTracker.getUsage(),
     compactionCount: ctx.compactionRecords?.length ?? 0,
     distilledLessonCount: ctx.distilledLessons?.length ?? 0,
     finishedAt: new Date().toISOString(),

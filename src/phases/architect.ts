@@ -53,27 +53,50 @@ ${options.context ?? "None provided"}
 ${researchSection}
 
 Generate a diagnosis with at least 2 distinct candidates across the Intervention Ladder:
-1. One candidate with level "local" (incremental fix)
-2. One candidate with level "subsystem" or "redesign" (architectural restructuring informed by research)
+Intervention Ladder Levels:
+- L0_configuration_typo: Config / typo / localized bug
+- L1_function_implementation: Function logic / local algorithm
+- L2_module_responsibility: Module responsibility / separation of concerns
+- L3_interface_api: Interface / API signature
+- L4_state_data_model: State ownership / data schema
+- L5_concurrency_execution: Concurrency / execution flow
+- L6_architecture: Subsystem / architectural boundaries
+- L7_requirement_assumption: Requirement / fundamental assumption
+
+Candidates must span different exploration radii (e.g., one L1 local fix, one L5/L6 structural redesign).
 
 Respond strictly with a valid JSON object matching this schema:
 {
-  "rootCause": "string",
-  "violatedInvariant": "string",
-  "currentArchitectureAssumption": "string",
+  "rootCause": "string describing root cause",
+  "violatedInvariant": "string describing the broken invariant",
+  "currentArchitectureAssumption": "string describing assumption in existing design",
   "candidates": [
     {
       "id": "cand-local",
-      "level": "local",
-      "hypothesis": "string",
-      "experiment": "string",
+      "level": "L1_function_implementation",
+      "levelNumber": 1,
+      "hypothesis": "string hypothesis",
+      "rootCause": "string root cause addressed",
+      "evidenceFor": ["string evidence supporting this hypothesis"],
+      "evidenceAgainst": ["string potential drawbacks or risks"],
+      "falsificationTest": "string how to prove this hypothesis false",
+      "predictedEffect": "string expected outcome",
+      "strategy": "local_patch",
+      "experiment": "string verification command or plan",
       "worthExperimenting": true
     },
     {
-      "id": "cand-architecture",
-      "level": "subsystem",
-      "hypothesis": "string",
-      "experiment": "string",
+      "id": "cand-redesign",
+      "level": "L6_architecture",
+      "levelNumber": 6,
+      "hypothesis": "string architectural redesign hypothesis",
+      "rootCause": "string deeper structural cause",
+      "evidenceFor": ["string evidence supporting redesign"],
+      "evidenceAgainst": ["string architectural transition costs"],
+      "falsificationTest": "string test proving redesign inadequate",
+      "predictedEffect": "string long-term architectural stability",
+      "strategy": "structural_redesign",
+      "experiment": "string verification command or plan",
       "worthExperimenting": true
     }
   ]
@@ -114,15 +137,29 @@ Respond strictly with a valid JSON object matching this schema:
     candidates: [
       {
         id: "cand-local",
-        level: "local",
+        level: "L1_function_implementation",
+        levelNumber: 1,
         hypothesis: `Apply localized patch for: ${options.goal}`,
+        rootCause: "Local implementation oversight or edge-case handling deficiency",
+        evidenceFor: ["Isolated to single execution branch", "Directly reproducible with minimal test"],
+        evidenceAgainst: ["May obscure deeper invariant conflict if repeated elsewhere"],
+        falsificationTest: "Verify edge-case handling under stress load",
+        predictedEffect: "Immediate bug resolution with minimal blast radius",
+        strategy: "local_patch",
         experiment: "Run existing test suite to verify no regressions",
         worthExperimenting: true,
       },
       {
         id: "cand-redesign",
-        level: "subsystem",
+        level: "L6_architecture",
+        levelNumber: 6,
         hypothesis: redesignHypothesis,
+        rootCause: `Fundamental architectural boundary friction: ${archAssumption}`,
+        evidenceFor: ["Eliminates recurrent class of defects", "Aligns with proven SOTA pattern"],
+        evidenceAgainst: ["Higher integration footprint", "Requires subsystem boundary refactoring"],
+        falsificationTest: "Verify architectural invariant consistency and zero regression",
+        predictedEffect: "Decouples component responsibilities and unlocks scalable throughput",
+        strategy: "structural_redesign",
         experiment: "Run test suite and check architectural clarity",
         worthExperimenting: true,
       },

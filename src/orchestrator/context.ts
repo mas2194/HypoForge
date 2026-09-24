@@ -15,6 +15,8 @@ import type { FalsifiedCandidate } from "../phases/falsify.js";
 import type { NodeExecutionRecord } from "../bt/types.js";
 import type { ContextCompactor, DistilledLesson, CompactionRecord } from "./compactor.js";
 
+import type { ResearchRoutingDecision } from "../phases/research-router.js";
+
 export enum Phase {
   Inspect = "Inspect",
   Research = "Research",
@@ -30,6 +32,23 @@ export enum Phase {
   Finished = "Finished",
 }
 
+export interface QueuedCandidate {
+  implementation: CandidateImplementation;
+  verification: VerificationResult;
+}
+
+export interface RejectedCandidateRecord {
+  candidate: QueuedCandidate;
+  blockingIssues: string[];
+}
+
+import type { ParetoComparisonResult } from "../evaluator/pareto.js";
+import type { DiversityEvaluation } from "../phases/diversity-gate.js";
+import type { BacktrackDecision } from "./backtrack-router.js";
+import type { BudgetTracker } from "../budget/tracker.js";
+import type { RepoInspection, ProblemSignature } from "../phases/inspect-repo.js";
+import type { VerifiedMemoryRecord } from "../memory/verified-memory.js";
+
 export interface HarnessContext {
   // Goal & Execution Identity
   goal: string;
@@ -39,6 +58,8 @@ export interface HarnessContext {
   publishPr: boolean;
   phase: Phase;
   finished: boolean;
+  unresolved?: boolean;
+  unresolvedReason?: string;
   error?: string;
 
   // Infrastructure managers
@@ -50,30 +71,38 @@ export interface HarnessContext {
   githubBroker: GitHubBroker;
   codexManager?: CodexClientManager;
   compactor: ContextCompactor;
+  budgetTracker: BudgetTracker;
 
   // Hermes-style Dynamic Memories & Skills
+  repoInspection?: RepoInspection;
+  problemSignature?: ProblemSignature;
   recalledMemories: MemorySearchResult[];
   activeSkills: Skill[];
   crystallizedSkill?: Skill;
   exportedTrajectoryPath?: string;
 
   // Artifacts produced along the ladder
+  researchRouting?: ResearchRoutingDecision;
   research?: ResearchBrief;
   diagnosis?: Diagnosis;
+  diversityEvaluation?: DiversityEvaluation;
   falsifiedCandidates?: CandidateHypothesis[];
   falsificationReviews?: FalsifiedCandidate[];
   implementations: CandidateImplementation[];
   verifications: VerificationResult[];
-  winner?: {
-    implementation: CandidateImplementation;
-    verification: VerificationResult;
-  };
+  baselineVerification?: VerificationResult;
+  paretoComparison?: ParetoComparisonResult;
+  candidateQueue: QueuedCandidate[];
+  rejectedCandidates: RejectedCandidateRecord[];
+  winner?: QueuedCandidate;
   review?: ReviewResult;
   publishedPrUrl?: string;
   adrFilename?: string;
+  verifiedMemory?: VerifiedMemoryRecord;
 
   // Self-Healing Feedback and Observability
   iteration: number;
+  backtrackDecision?: BacktrackDecision;
   rejectionFeedbacks: string[];
   distilledLessons: DistilledLesson[];
   compactionRecords: CompactionRecord[];

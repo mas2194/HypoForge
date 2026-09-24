@@ -14,6 +14,7 @@ import {
   researchAction,
   diagnoseAction,
   falsifyAction,
+  diversityGateAction,
   implementAction,
   verifyAction,
   compareAction,
@@ -38,10 +39,11 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
     return enableTracing ? trace(node) : node;
   };
 
-  // Subtree: Diagnose -> Falsify -> Implement -> Verify -> Compare -> Review Gate
+  // Subtree: Diagnose -> Falsify -> DiversityGate -> Implement -> Verify -> Compare -> Review Gate
   const exploreAndValidateSubtree = sequence("Explore, Implement & Validate", [
     wrap(action("Diagnose", diagnoseAction)),
     wrap(action("Falsify", falsifyAction)),
+    wrap(action("DiversityGate", diversityGateAction)),
     wrap(action("Implement", implementAction)),
     wrap(action("Verify", verifyAction)),
     wrap(action("Compare", compareAction)),
@@ -53,17 +55,18 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
     ),
   ]);
 
-  // Self-Healing Retry Decorator with Context Compaction
+  // Self-Healing Retry Decorator with Context Compaction and Backtrack Routing
   const selfHealingLoop = retry(
     maxAttempts,
     "Self-Healing Exploration Loop",
     exploreAndValidateSubtree,
     (attempt, ctx) => {
       ctx.iteration = attempt + 1;
+      const target = ctx.backtrackDecision?.target ?? "Diagnose";
       // Compact and distill blackboard context upon backtracking
       ctx.compactor.compactForBacktrack(ctx);
       console.log(
-        `\n[BT:Self-Healing] === Backtracking to Diagnose for Iteration ${ctx.iteration}/${maxAttempts} (Context Compacted) ===`
+        `\n[BT:Self-Healing] === Backtracking to ${target} for Iteration ${ctx.iteration}/${maxAttempts} (Context Compacted) ===`
       );
     }
   );

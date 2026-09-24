@@ -43,19 +43,31 @@ export async function runCleanRoomReviewPhase(
     diffContent = "(No diff or unable to extract diff)";
   }
 
+  const benchmarkSummary = options.verification.benchmark
+    ? `- Benchmark: before=${options.verification.benchmark.before}, after=${options.verification.benchmark.after} (${options.verification.benchmark.unit})`
+    : "";
+  const complexitySummary = options.verification.complexity
+    ? `- Diff Complexity: +${options.verification.complexity.addedLines} / -${options.verification.complexity.deletedLines} lines across ${options.verification.complexity.fileCount} file(s)`
+    : "";
+  const regressionsSummary = options.verification.regressions.length > 0
+    ? `- Detected Regressions: ${options.verification.regressions.join("; ")}`
+    : "- Detected Regressions: None";
+
   const prompt = `
 ${systemPrompt}
 
 Goal:
 ${options.goal}
 
-Candidate Intervention Level: ${options.implementation.level}
-Candidate ID: ${options.implementation.candidateId}
+Candidate:
+Anonymous Candidate X (All author and ranking metadata stripped for blind audit)
 
-Objective Test Evidence:
-- Passed: ${options.verification.tests.passed}
-- Failed: ${options.verification.tests.failed}
-- Score: ${options.verification.score}
+Objective Test & Verification Evidence:
+- Test Results: ${options.verification.tests.passed} passed, ${options.verification.tests.failed} failed
+- Execution Status: ${options.verification.tests.failed === 0 ? "PASSED (Zero test errors)" : "FAILED (Test failures detected)"}
+${regressionsSummary}
+${benchmarkSummary}
+${complexitySummary}
 
 Diff:
 \`\`\`diff
@@ -74,9 +86,11 @@ Respond strictly with a valid JSON object matching this schema:
 
   if (codexManager) {
     try {
-      // Clean-room: start a completely brand new thread with no memory of implementation
+      // Clean-room: start a completely brand new thread with no memory of implementation and strictly offline
       const thread = codexManager.startWorkerThread({
         workingDirectory: options.repoPath ?? process.cwd(),
+        networkAccessEnabled: false,
+        webSearchMode: "disabled",
       });
       const turn = await thread.run(prompt);
       const response = turn.finalResponse ?? "";
@@ -96,7 +110,7 @@ Respond strictly with a valid JSON object matching this schema:
     approved,
     blockingIssues: approved ? [] : ["Tests failed or negative score detected"],
     suggestions: [
-      `Maintain documentation updates for ${options.implementation.level} level architecture change.`,
+      "Ensure all architectural invariants and regression tests remain documented.",
     ],
     feedback: approved
       ? "Clean-room review passed. No architectural regressions detected."

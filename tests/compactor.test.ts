@@ -175,19 +175,19 @@ describe("ContextCompactor", () => {
 
     const reviewSpy = vi.spyOn(reviewPhase, "runCleanRoomReviewPhase").mockImplementation(async () => {
       attempt++;
-      if (attempt === 1) {
+      if (attempt <= 2) {
         return {
           approved: false,
           blockingIssues: ["Mutex deadlock hazard in background sync thread"],
           suggestions: ["Use atomic bool flag"],
-          feedback: "Rejected attempt 1 due to deadlock risk.",
+          feedback: `Rejected attempt ${attempt} due to deadlock risk.`,
         };
       }
       return {
         approved: true,
         blockingIssues: [],
         suggestions: ["Clean design"],
-        feedback: "Approved attempt 2.",
+        feedback: "Approved on retry attempt.",
       };
     });
 
