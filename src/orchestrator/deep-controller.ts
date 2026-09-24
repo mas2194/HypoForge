@@ -255,10 +255,19 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
     }
   }
 
-  if (ctx.budgetTracker.isExhausted()) {
-    console.error("[DeepController:FSM] Terminated: Exploration budget exhausted.");
+  const budgetStatus = ctx.budgetTracker.checkBudget();
+  if (budgetStatus.exhausted) {
+    const usage = budgetStatus.usage;
+    const limits = budgetStatus.limits;
+    ctx.error = `Exploration budget exhausted: ${budgetStatus.reason}. ` +
+      `Usage: elapsed=${(usage.elapsedMs / 1000).toFixed(1)}s, ` +
+      `researchCalls=${usage.researchCalls}/${limits.maxResearchCalls}, ` +
+      `candidates=${usage.candidatesEvaluated}/${limits.maxCandidates}, ` +
+      `testRuns=${usage.testRuns}/${limits.maxTestRuns}.`;
+    console.error(`[DeepController:FSM] Terminated: ${ctx.error}`);
   } else {
-    console.error(`[DeepController:FSM] Terminated: Exceeded maximum iterations (${maxIterations}).`);
+    ctx.error = `Deep exploration exceeded maximum iterations (${maxIterations}).`;
+    console.error(`[DeepController:FSM] Terminated: ${ctx.error}`);
   }
 
   return "FAILURE";

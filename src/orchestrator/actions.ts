@@ -273,6 +273,7 @@ export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   console.log(
     `[Phase: Research] Conducting literature & prior-art survey on SOTA approaches (${reasonMsg})...`
   );
+  ctx.budgetTracker.recordResearchCall();
   emitSubAgentLog(
     ctx,
     "agent-research",

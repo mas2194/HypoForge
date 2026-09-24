@@ -363,7 +363,6 @@ GITHUB_TARGET_REPO=
 
 # 実行時パラメータ設定
 MAX_PARALLEL_EXPERIMENTS=3
-EXPERIMENT_TIMEOUT_MS=600000
 WORKTREES_DIR=./worktrees
 HARNESS_TEST_COMMAND="npm test"
 ```
@@ -476,7 +475,6 @@ const harness = new HarnessStateMachine({
     maxCandidates: 8,           // 最大候補実装数
     maxTestRuns: 20,            // 最大テスト実行回数
     maxBacktracks: 4,           // フェーズ差し戻し最大回数
-    wallClockTimeoutMs: 1800000 // タイムアウト時間（30分）
   }
 });
 ```

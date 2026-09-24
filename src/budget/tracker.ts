@@ -1,7 +1,6 @@
 export interface BudgetLimits {
   maxIterations: number;
   maxCandidates: number;
-  wallClockBudgetMs: number;
   maxTestRuns: number;
   maxTokens: number;
   maxResearchCalls: number;
@@ -31,7 +30,6 @@ export interface BudgetStatus {
 export const DEFAULT_BUDGET_LIMITS: BudgetLimits = {
   maxIterations: 3,
   maxCandidates: 8,
-  wallClockBudgetMs: 15 * 60 * 1000, // 15 minutes default
   maxTestRuns: 16,
   maxTokens: 500_000,
   maxResearchCalls: 3,
@@ -177,15 +175,6 @@ export class BudgetTracker {
       }
     }
 
-    if (usage.elapsedMs > this.limits.wallClockBudgetMs) {
-      return {
-        exhausted: true,
-        reason: `Wall-clock execution timeout (${(usage.elapsedMs / 1000).toFixed(1)}s > ${(this.limits.wallClockBudgetMs / 1000).toFixed(1)}s)`,
-        usage,
-        limits: this.limits,
-      };
-    }
-
     return {
       exhausted: false,
       usage,
@@ -193,4 +182,3 @@ export class BudgetTracker {
     };
   }
 }
-

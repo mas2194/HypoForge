@@ -32,14 +32,6 @@ describe("BudgetTracker", () => {
     expect(status.exhausted).toBe(true);
     expect(status.reason).toContain("Test execution budget exhausted");
   });
-
-  it("should detect when wall-clock execution time exceeds budget", async () => {
-    const tracker = new BudgetTracker({ wallClockBudgetMs: 10 }); // 10ms budget
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    const status = tracker.checkBudget();
-    expect(status.exhausted).toBe(true);
-    expect(status.reason).toContain("Wall-clock execution timeout");
-  });
 });
 
 describe("Repo Inspection & Problem Signature (Anti-Memory Anchoring)", () => {

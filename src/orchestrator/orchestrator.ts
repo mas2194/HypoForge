@@ -168,7 +168,7 @@ export class HarnessOrchestrator {
       try {
         status = await this.tree.tick(this.context);
         lastError = status === "FAILURE"
-          ? `${this.context.phase} phase returned FAILURE.`
+          ? this.context.error ?? `${this.context.phase} phase returned FAILURE.`
           : undefined;
       } catch (error) {
         status = "FAILURE";
