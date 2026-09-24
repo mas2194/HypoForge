@@ -213,11 +213,13 @@ export function handleHelpCommand(): SlashCommandResult {
     "  /model [name|num]    View or switch the active Codex model",
     "  /effort [level|num]  View or change reasoning effort (minimal, low, medium, high, xhigh, max, ultra)",
     "  /status              View current configuration and active settings",
+    "  @<file> [prompt]     Load file(s) into context (use Tab to select candidates)",
     "  /help                Display this help message",
     "  /exit, /quit, /q     Exit the harness",
     "",
     "Input Navigation:",
     "  - Enter: submit goal or command",
+    "  - Tab: autocomplete and select @file candidates",
     "  - Shift+Enter (or Option+Enter): insert new line",
     "  - Ctrl+D: EOF submit",
   ];
@@ -237,6 +239,20 @@ export function executeSlashCommand(
   context: SlashCommandContext
 ): SlashCommandResult {
   const trimmed = rawInput.trim();
+
+  // Handle standalone @ or @help request
+  if (trimmed === "@" || trimmed === "@help" || trimmed === "@/help") {
+    return {
+      handled: true,
+      output: [
+        "Usage: @<file> [instruction]",
+        "Specify file(s) to load into goal context.",
+        "Example: @src/main.ts Refactor error handling",
+        "Tip: Type '@' and press Tab to interactively browse and select workspace files.",
+      ].join("\n"),
+      action: "continue",
+    };
+  }
 
   if (!trimmed.startsWith("/")) {
     // Check standard exit keywords

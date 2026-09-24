@@ -398,6 +398,20 @@ Similar to Codex CLI, `my_harness` supports dynamic interactive slash commands i
 - **`/help`**: Lists available commands and prompt navigation instructions.
 - **`/exit`**, **`/quit`**, **`/q`** (or `exit`, `quit`, `q`): Exit the harness session.
 
+#### `@` Command (File Loading & Tab Completion)
+
+Reference and load workspace files directly into your goal context using `@`:
+
+- **`@<file>`** or **`@ <file>`**:
+  - Automatically loads the specified file's contents and injects them as structured markdown into the prompt context.
+  - Example: `@src/main.ts Refactor error handling`
+  - Example: `Compare @src/main.ts and @src/codex/commands.ts`
+  - Line range slicing: `@src/main.ts:10-50`
+- **Tab Key (tap) Candidate Completion & Selection**:
+  - Type `@` or `@<prefix>` and press **Tab** to list candidate workspace files.
+  - Press **Tab** (or **Down** / **Up** / **Shift+Tab**) to cycle through candidates and select one.
+  - Press **Enter** or **Space** to confirm the selection and continue typing your prompt (**Esc** to dismiss).
+
 During execution, `my_harness` will:
 1. Inspect the repository AST, topology, and invariant contracts.
 2. Formulate diagnostic hypotheses across multiple intervention levels.
