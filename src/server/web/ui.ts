@@ -651,7 +651,49 @@ export function renderWebUI(): string {
       gap: 12px;
     }
 
-    /* Codex Sub-Agent Card */
+    .explore-flow {
+      display: none;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-secondary);
+    }
+
+    .explore-flow.visible { display: block; }
+
+    .explore-flow-title {
+      margin-bottom: 8px;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    .explore-flow-steps {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .explore-step {
+      padding: 5px 9px;
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      background: var(--bg-primary);
+      color: var(--text-secondary);
+      font-size: 10.5px;
+      cursor: pointer;
+    }
+
+    .explore-step:hover { border-color: var(--border-focus); color: var(--text-primary); }
+    .explore-step.running { border-color: var(--accent-blue); color: var(--accent-blue); }
+    .explore-step.completed { border-color: var(--accent-green); color: var(--accent-green); }
+    .explore-step.failed { border-color: var(--accent-red); color: var(--accent-red); }
+
+    .explore-arrow { color: var(--text-muted); font-size: 11px; }
+
+    /* Sub-agent rows reveal their content only in the detail dialog. */
     .agent-card {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
@@ -674,6 +716,8 @@ export function renderWebUI(): string {
       cursor: pointer;
       user-select: none;
     }
+
+    .agent-card-header:hover { background: var(--bg-hover); }
 
     .agent-identity {
       display: flex;
@@ -763,6 +807,76 @@ export function renderWebUI(): string {
     .agent-card.collapsed .agent-card-body {
       display: none;
     }
+
+    .agent-card-body { display: none; }
+
+    .agent-detail-dialog {
+      width: min(760px, calc(100vw - 32px));
+      max-width: 760px;
+      max-height: min(82vh, 900px);
+      padding: 0;
+      overflow: hidden;
+      color: var(--text-primary);
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+    }
+
+    .agent-detail-dialog::backdrop { background: rgba(0, 0, 0, 0.66); }
+
+    .agent-detail-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-secondary);
+    }
+
+    .agent-detail-title { font-size: 15px; font-weight: 650; }
+    .agent-detail-subtitle { margin-top: 4px; color: var(--text-muted); font-size: 11px; }
+
+    .agent-detail-close {
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 4px 8px;
+      color: var(--text-secondary);
+      background: var(--bg-primary);
+      cursor: pointer;
+    }
+
+    .agent-detail-content {
+      max-height: calc(min(82vh, 900px) - 68px);
+      overflow: auto;
+      padding: 16px 18px;
+    }
+
+    .agent-detail-event { margin-bottom: 18px; }
+    .agent-detail-event:last-child { margin-bottom: 0; }
+    .agent-detail-event-title {
+      margin-bottom: 7px;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: 0.45px;
+      text-transform: uppercase;
+    }
+
+    .markdown-content { font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+    .markdown-content h1, .markdown-content h2, .markdown-content h3 { margin: 14px 0 7px; line-height: 1.3; }
+    .markdown-content h1 { font-size: 19px; }
+    .markdown-content h2 { font-size: 16px; }
+    .markdown-content h3 { font-size: 14px; }
+    .markdown-content p { margin: 0 0 10px; }
+    .markdown-content ul, .markdown-content ol { margin: 6px 0 10px; padding-left: 22px; }
+    .markdown-content blockquote { margin: 8px 0; padding: 2px 10px; border-left: 3px solid var(--border-focus); color: var(--text-secondary); }
+    .markdown-content pre { overflow: auto; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-primary); }
+    .markdown-content code { font-family: var(--font-mono); font-size: 0.92em; }
+    .markdown-content :not(pre) > code { padding: 1px 4px; border-radius: 4px; background: var(--bg-tertiary); }
+    .markdown-content a { color: var(--accent-blue); }
+    .agent-detail-empty { color: var(--text-muted); font-size: 12px; }
 
     .activity-row {
       display: flex;
@@ -983,6 +1097,11 @@ export function renderWebUI(): string {
         </div>
       </div>
 
+      <div class="explore-flow" id="explore-flow" aria-label="Explore phase flow">
+        <div class="explore-flow-title">Explore Flow · select a step to inspect its agent output</div>
+        <div class="explore-flow-steps" id="explore-flow-steps"></div>
+      </div>
+
       <!-- Codex Sub-Agent Activity Panel -->
       <div class="subagent-section">
         <div class="subagent-header">
@@ -1002,10 +1121,21 @@ export function renderWebUI(): string {
           <div class="empty-state" id="empty-agent-state">
             <div style="font-size: 24px;">🤖</div>
             <div>No sub-agents active yet.</div>
-            <div style="font-size: 11px;">Sub-agents spawned by the harness will stream real-time thinking, tool execution, and results here.</div>
+            <div style="font-size: 11px;">Select an agent or Explore step to open its Markdown output.</div>
           </div>
         </div>
       </div>
+
+      <dialog class="agent-detail-dialog" id="agent-detail-dialog" aria-labelledby="agent-detail-title">
+        <div class="agent-detail-header">
+          <div>
+            <div class="agent-detail-title" id="agent-detail-title"></div>
+            <div class="agent-detail-subtitle" id="agent-detail-subtitle"></div>
+          </div>
+          <button type="button" class="agent-detail-close" id="agent-detail-close" aria-label="Close">Close</button>
+        </div>
+        <div class="agent-detail-content" id="agent-detail-content"></div>
+      </dialog>
     </div>
   </div>
 
@@ -1019,8 +1149,11 @@ export function renderWebUI(): string {
       subAgents: new Map(), // agentId -> agentObject
       agentFilter: "all",
       phaseFilter: null,
+      phaseEvents: new Map(),
       workspaceFiles: [],
     };
+
+    const explorePhases = ["Research", "Diagnose", "DiversityGate", "Falsify", "Implement", "Verify", "Compare", "Review"];
 
     const renderedMessageIds = new Set();
 
@@ -1038,6 +1171,12 @@ export function renderWebUI(): string {
     const emptyAgentStateEl = document.getElementById("empty-agent-state");
     const agentCountBadgeEl = document.getElementById("agent-count-badge");
     const autocompleteListEl = document.getElementById("autocomplete-list");
+    const exploreFlowEl = document.getElementById("explore-flow");
+    const exploreFlowStepsEl = document.getElementById("explore-flow-steps");
+    const agentDetailDialogEl = document.getElementById("agent-detail-dialog");
+    const agentDetailTitleEl = document.getElementById("agent-detail-title");
+    const agentDetailSubtitleEl = document.getElementById("agent-detail-subtitle");
+    const agentDetailContentEl = document.getElementById("agent-detail-content");
 
     // Initialize application
     async function init() {
@@ -1146,6 +1285,8 @@ export function renderWebUI(): string {
     function updatePhase(phaseEvent) {
       const phase = phaseEvent.phase;
       state.currentPhase = phase;
+      state.phaseEvents.set(phase, phaseEvent);
+      renderExploreFlow();
       currentPhaseDisplayEl.textContent = "Phase: " + phase + (phaseEvent.path ? " (" + phaseEvent.path + ")" : "");
 
       // Highlight stage nodes in graph
@@ -1193,6 +1334,8 @@ export function renderWebUI(): string {
           el.className = "stage-node failed";
         }
       }
+
+      renderExploreFlow();
     }
 
     function handleSubAgentEvent(agentEvent) {
@@ -1208,29 +1351,19 @@ export function renderWebUI(): string {
           role: agentEvent.role,
           phase: agentEvent.phase,
           status: agentEvent.status || "running",
-          logs: [],
-          tools: [],
-          results: [],
+          events: [],
           el: null,
         };
         state.subAgents.set(agentEvent.agentId, agent);
         createAgentCard(agent);
       }
 
-      agent.status = agentEvent.status;
-
-      if (agentEvent.type === "thought" && agentEvent.message) {
-        agent.logs.push({ type: "Thought", content: agentEvent.message });
-      } else if (agentEvent.type === "tool" && agentEvent.message) {
-        agent.tools.push({ type: "Tool Action", content: agentEvent.message });
-      } else if (agentEvent.type === "result" && agentEvent.message) {
-        agent.results.push({ type: "Evidence / Metric", content: agentEvent.message });
-      } else if (agentEvent.type === "finish" && agentEvent.message) {
-        agent.results.push({ type: "Outcome", content: agentEvent.message });
-      }
+      agent.status = agentEvent.status || agent.status;
+      if (agentEvent.message || agentEvent.details) agent.events.push({ ...agentEvent });
 
       updateAgentCard(agent, agentEvent);
       updateAgentBadgeCounts();
+      renderExploreFlow();
     }
 
     function createAgentCard(agent) {
@@ -1251,7 +1384,7 @@ export function renderWebUI(): string {
           '</div>' +
           '<div class="agent-meta">' +
             '<span class="badge running" id="badge-' + agent.id + '">RUNNING</span>' +
-            '<span class="toggle-arrow">▼</span>' +
+            '<span class="toggle-arrow">↗</span>' +
           '</div>' +
         '</div>' +
         '<div class="agent-card-body" id="body-' + agent.id + '">' +
@@ -1263,7 +1396,15 @@ export function renderWebUI(): string {
 
       const header = card.querySelector(".agent-card-header");
       if (header) {
-        header.addEventListener("click", () => toggleCard(agent.id));
+        header.addEventListener("click", () => openAgentDetails(agent.id));
+        header.setAttribute("role", "button");
+        header.setAttribute("tabindex", "0");
+        header.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            openAgentDetails(agent.id);
+          }
+        });
       }
 
       agent.el = card;
@@ -1281,26 +1422,8 @@ export function renderWebUI(): string {
 
       agent.el.className = "agent-card " + (agent.status === "running" ? "running" : "");
 
-      const contentLogsEl = document.getElementById("content-logs-" + agent.id);
-      if (contentLogsEl) {
-        const lines = [];
-        if (latestEvent.message) {
-          lines.push(latestEvent.message);
-        }
-        for (const item of agent.tools) {
-          lines.push("⚡ [Tool] " + item.content);
-        }
-        for (const item of agent.results) {
-          lines.push("✓ [Result] " + item.content);
-        }
-        if (latestEvent.details) {
-          lines.push(JSON.stringify(latestEvent.details, null, 2));
-        }
-
-        if (lines.length > 0) {
-          contentLogsEl.textContent = lines.join("\\n\\n");
-        }
-      }
+      const header = agent.el.querySelector(".agent-card-header");
+      if (header) header.setAttribute("aria-label", "Open Markdown output for " + agent.name);
     }
 
     function getAgentIcon(id, name) {
@@ -1318,13 +1441,6 @@ export function renderWebUI(): string {
       if (id.includes("publisher")) return "🚀";
       if (id.includes("learner")) return "📚";
       return "🤖";
-    }
-
-    function toggleCard(agentId) {
-      const card = document.getElementById("agent-card-" + agentId);
-      if (card) {
-        card.classList.toggle("collapsed");
-      }
     }
 
     function updateAgentBadgeCounts() {
@@ -1351,17 +1467,107 @@ export function renderWebUI(): string {
     }
 
     function filterByPhase(phase) {
-      for (const agent of state.subAgents.values()) {
-        if (!agent.el) continue;
-        if (agent.phase === phase || phase === "Explore") {
-          agent.el.scrollIntoView({ behavior: "smooth" });
-          agent.el.style.borderColor = "var(--accent-blue)";
-          setTimeout(() => {
-            agent.el.style.borderColor = "";
-          }, 1500);
-          break;
+      if (phase === "Explore") {
+        exploreFlowEl.classList.toggle("visible");
+        renderExploreFlow();
+        return;
+      }
+      exploreFlowEl.classList.remove("visible");
+      openPhaseDetails(phase);
+    }
+
+    function renderExploreFlow() {
+      if (!exploreFlowStepsEl) return;
+      exploreFlowStepsEl.replaceChildren();
+      explorePhases.forEach((phase, index) => {
+        const phaseEvent = state.phaseEvents.get(phase);
+        const phaseAgents = [...state.subAgents.values()].filter((agent) => agent.phase === phase);
+        let status = phaseEvent?.status || "pending";
+        if (!phaseEvent && phaseAgents.length) {
+          status = phaseAgents.some((agent) => agent.status === "running") ? "running" : phaseAgents[0].status;
+        }
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "explore-step " + status;
+        button.textContent = phase.replace(/([a-z])([A-Z])/g, "$1 $2");
+        button.title = "Open " + phase + " agent output";
+        button.addEventListener("click", () => openPhaseDetails(phase));
+        exploreFlowStepsEl.appendChild(button);
+        if (index < explorePhases.length - 1) {
+          const arrow = document.createElement("span");
+          arrow.className = "explore-arrow";
+          arrow.textContent = "→";
+          exploreFlowStepsEl.appendChild(arrow);
+        }
+      });
+    }
+
+    function openAgentDetails(agentId) {
+      const agent = state.subAgents.get(agentId);
+      if (!agent) return;
+      showAgentDetails(agent.name, agent.phase + " · " + agent.status, agent.events);
+    }
+
+    function openPhaseDetails(phase) {
+      const agents = [...state.subAgents.values()].filter((agent) => agent.phase === phase);
+      const phaseEvent = state.phaseEvents.get(phase);
+      const events = [];
+      if (phaseEvent?.summary) {
+        events.push({ type: "summary", name: phase, message: phaseEvent.summary, timestamp: phaseEvent.timestamp });
+      }
+      for (const agent of agents) {
+        for (const event of agent.events) {
+          events.push({ ...event, name: agent.name });
         }
       }
+      events.sort((left, right) => new Date(left.timestamp || 0) - new Date(right.timestamp || 0));
+      const status = phaseEvent?.status || (agents.some((agent) => agent.status === "running") ? "running" : agents[0]?.status || "pending");
+      showAgentDetails(phase.replace(/([a-z])([A-Z])/g, "$1 $2"), status + " · " + agents.length + " agent(s)", events);
+    }
+
+    function showAgentDetails(title, subtitle, events) {
+      agentDetailTitleEl.textContent = title;
+      agentDetailSubtitleEl.textContent = subtitle;
+      agentDetailContentEl.replaceChildren();
+      if (!events.length) {
+        const empty = document.createElement("div");
+        empty.className = "agent-detail-empty";
+        empty.textContent = "No agent output has been recorded for this item yet.";
+        agentDetailContentEl.appendChild(empty);
+      } else {
+        for (const event of events) {
+          const section = document.createElement("section");
+          section.className = "agent-detail-event";
+          const label = document.createElement("div");
+          label.className = "agent-detail-event-title";
+          const eventLabel = ({
+            start: "Started",
+            thought: "Agent thought",
+            tool: "Tool activity",
+            result: "Generated content",
+            finish: "Final output",
+            summary: "Phase summary",
+            log: "Log",
+          })[event.type] || event.type;
+          label.textContent = (event.name ? event.name + " · " : "") + eventLabel;
+          section.appendChild(label);
+          if (event.message) {
+            const markdown = document.createElement("div");
+            markdown.className = "markdown-content";
+            markdown.innerHTML = formatMarkdown(event.message);
+            section.appendChild(markdown);
+          }
+          if (event.details && Object.keys(event.details).length) {
+            const details = document.createElement("div");
+            details.className = "markdown-content";
+            const fence = String.fromCharCode(96).repeat(3);
+            details.innerHTML = formatMarkdown(fence + "json\\n" + JSON.stringify(event.details, null, 2) + "\\n" + fence);
+            section.appendChild(details);
+          }
+          agentDetailContentEl.appendChild(section);
+        }
+      }
+      if (!agentDetailDialogEl.open) agentDetailDialogEl.showModal();
     }
 
     function handleHarnessFinish(data) {
@@ -1502,6 +1708,11 @@ export function renderWebUI(): string {
     function setupEventListeners() {
       sendBtnEl.addEventListener("click", sendMessage);
       setupAutocomplete();
+
+      document.getElementById("agent-detail-close").addEventListener("click", () => agentDetailDialogEl.close());
+      agentDetailDialogEl.addEventListener("click", (event) => {
+        if (event.target === agentDetailDialogEl) agentDetailDialogEl.close();
+      });
 
       document.getElementById("clear-chat-btn").addEventListener("click", () => {
         chatMessagesEl.innerHTML = "";
@@ -1671,20 +1882,73 @@ export function renderWebUI(): string {
 
     function formatMarkdown(text) {
       if (!text) return "";
-      let html = escapeHtml(text);
-      // Code blocks
-      html = html.replace(new RegExp("\\x60\\x60\\x60([\\\\s\\\\S]*?)\\x60\\x60\\x60", "g"), "<pre><code>$1</code></pre>");
-      // Inline code
-      html = html.replace(new RegExp("\\x60([^\\x60]+)\\x60", "g"), "<code>$1</code>");
-      // Bold: **text**
-      html = html.replace(/\\*\\*([^\\*]+)\\*\\*/g, "<strong>$1</strong>");
-      // Blockquotes: > text
-      html = html.replace(/^&gt;\\s+(.*)$/gm, "<blockquote>$1</blockquote>");
-      // Bullet points: - item
-      html = html.replace(/^-\\s+(.*)$/gm, "<li>$1</li>");
-      // Newlines
-      html = html.replace(/\\n/g, "<br>");
-      return html;
+      const tick = String.fromCharCode(96);
+      const blocks = [];
+      let escaped = escapeHtml(String(text)).replace(new RegExp(tick + tick + tick + "([^\\n]*)\\n?([\\s\\S]*?)" + tick + tick + tick, "g"), (_match, _lang, code) => {
+        const token = "@@CODE_BLOCK_" + blocks.length + "@@";
+        blocks.push("<pre><code>" + code.replace(/\\n$/, "") + "</code></pre>");
+        return "\\n" + token + "\\n";
+      });
+      const inlineCode = [];
+      escaped = escaped.replace(new RegExp(tick + "([^" + tick + "\\n]+)" + tick, "g"), (_match, code) => {
+        const token = "@@INLINE_CODE_" + inlineCode.length + "@@";
+        inlineCode.push("<code>" + code + "</code>");
+        return token;
+      });
+
+      function renderInline(line) {
+        return line
+          .replace(/\\[([^\\]]+)\\]\\((https?:\\/\\/[^ )]+)\\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+          .replace(/\\*\\*([^*]+)\\*\\*/g, "<strong>$1</strong>")
+          .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+          .replace(/(^|[^*])\\*([^*]+)\\*(?!\\*)/g, "$1<em>$2</em>")
+          .replace(/~~([^~]+)~~/g, "<del>$1</del>")
+          .replace(/@@INLINE_CODE_(\\d+)@@/g, (_match, index) => inlineCode[Number(index)] || "");
+      }
+
+      const lines = escaped.split("\\n");
+      const output = [];
+      let listType = null;
+      const closeList = () => {
+        if (listType) output.push("</" + listType + ">");
+        listType = null;
+      };
+      for (const line of lines) {
+        const unordered = line.match(/^\\s*[-*+]\\s+(.+)$/);
+        const ordered = line.match(/^\\s*\\d+\\.\\s+(.+)$/);
+        const listMatch = unordered || ordered;
+        if (listMatch) {
+          const nextType = unordered ? "ul" : "ol";
+          if (listType !== nextType) {
+            closeList();
+            output.push("<" + nextType + ">");
+            listType = nextType;
+          }
+          output.push("<li>" + renderInline(listMatch[1]) + "</li>");
+          continue;
+        }
+        closeList();
+        if (!line.trim()) continue;
+        const codeBlock = line.match(/^@@CODE_BLOCK_(\\d+)@@$/);
+        if (codeBlock) {
+          output.push(blocks[Number(codeBlock[1])] || "");
+          continue;
+        }
+        const heading = line.match(/^(#{1,6})\\s+(.+)$/);
+        if (heading) {
+          const level = heading[1].length;
+          output.push("<h" + level + ">" + renderInline(heading[2]) + "</h" + level + ">");
+          continue;
+        }
+        const quote = line.match(/^&gt;\\s*(.*)$/);
+        if (quote) {
+          output.push("<blockquote>" + renderInline(quote[1]) + "</blockquote>");
+          continue;
+        }
+        output.push("<p>" + renderInline(line) + "</p>");
+      }
+      closeList();
+      return output.join("");
     }
 
     window.addEventListener("DOMContentLoaded", init);

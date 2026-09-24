@@ -434,8 +434,8 @@ npx tsx src/main.ts --server --port 8080 --model o3-mini --effort high
   - `@<file>` 入力時の自動補完ドロップダウンや、`/model`, `/effort`, `/help` などのスラッシュコマンドに対応。
   - ヘッダーからアクティブモデルや推論Effortを動的に切り替え可能。
 - **右側ペイン（Harness Stage Graph & Codex Sub-Agent Activity）**:
-  - **ハーネス各段階のグラフ（Pipeline Stage Graph）**: `Inspect` → `Triage` → `Explore`（`FAST` または `DEEP`）→ `Integrate` → `Publish` → `Learn` の各段階の進行状況（実行中アニメーション、成功、失敗）をリアルタイムに表示。ノードをクリックして該当エージェントへジャンプ可能。
-  - **Codex風サブエージェント出力（Sub-Agent Output Panel）**: 各フェーズを担当するサブエージェント（`Architect`, `Falsifier`, 独立worktreeで動く各 `Worker`, `Evaluator`, `Reviewer`, `Integrator` 等）の思考ログ（Reasoning）、実行ツール、検証証拠、メトリクスをカード形式でリアルタイムにストリーミング表示。
+  - **ハーネス各段階のグラフ（Pipeline Stage Graph）**: `Inspect` → `Triage` → `Explore`（`FAST` または `DEEP`）→ `Integrate` → `Publish` → `Learn` の進行状況をリアルタイムに表示。ノードをクリックすると、その項目の詳細を開きます。`Explore` をクリックすると `Research` から `Review` までの段階別フローを表示し、各段階をクリックすると詳細を確認できます。
+  - **Codex風サブエージェント出力（Sub-Agent Output Panel）**: エージェントを選択すると、思考ログ、ツール活動、生成内容、検証証拠、メトリクスをポップアップで確認できます。出力は Markdown として表示されます。
 
 実行中、`my_harness` は以下のフローを自律的に進行します：
 1. 対象コードベースの AST、依存関係トポロジー、不変条件を自動解析。
