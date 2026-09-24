@@ -1,1235 +1,501 @@
-できます。狙っているものは、単なる「Codex SDK ラッパー」ではなく、**Codexを探索アルゴリズムの実行器として扱う開発エージェント・ハーネス**に近いです。
+# Autonomous Agent Harness (`my_harness`)
 
-2026年9月時点では、Codex SDK は同一threadの継続、structured output、streaming、working directory、sandbox、approval policy、reasoning effort、web searchなどを制御できます。またCodex側にはmulti-agentとhooksもあるため、この用途にはかなり適しています。([GitHub][1])
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x%20%2F%207.x-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Vitest](https://img.shields.io/badge/Tests-83%20passed-brightgreen.svg?logo=vitest&logoColor=white)](https://vitest.dev/)
 
-私なら以下の構成にします。
+**English** | [**日本語**](README.ja.md)
 
-```text
-                    User Goal
-                       │
-                       ▼
-              ┌─────────────────┐
-              │ Meta Supervisor │   ← Codex SDKではなく
-              │   TypeScript    │      自作の決定論的FSM
-              └────────┬────────┘
-                       │
-        ┌──────────────┼───────────────┐
-        ▼              ▼               ▼
-   Investigator     Architect       Researcher
-   Codex thread     Codex agents    Codex/Web
-        │              │               │
-        └──────────────┼───────────────┘
-                       ▼
-                Hypothesis Pool
-       ┌───────────────┼───────────────┐
-       ▼               ▼               ▼
-   local fix      subsystem       redesign
-   worktree A     worktree B      worktree C
-       │               │               │
-       └───────────────┼───────────────┘
-                       ▼
-              Tests / Benchmark /
-              Static analysis / CI
-                       │
-                       ▼
-               Evidence Judge
-                       │
-              ┌────────┴─────────┐
-              ▼                  ▼
-           reject            integrate
-                                  │
-                                  ▼
-                       GitHub Broker
-                branch / commit / PR / CI
-                                  │
-                                  ▼
-                         Clean-room Review
-                                  │
-                                  ▼
-                             merge
-```
+---
 
-## 1. 「最小変更」を目的関数から消す
+`my_harness` is an autonomous software engineering harness built on TypeScript and the OpenAI / Codex SDK. Rather than treating Large Language Models as simple "diff generators" that apply superficial patches, `my_harness` treats LLMs as **hypothesis exploration engines** regulated by a deterministic, evidence-driven supervisory architecture.
 
-まず最重要なのがこれです。
+It systematically eliminates the **"Minimal-Diff Trap"** (where agents apply short-sighted workarounds to minimize changes) through multi-level architectural exploration, counterfactual checks, isolated Git worktrees, metamorphic invariant verification, and blind clean-room peer review.
 
-Codexに、
+---
 
-> 必要なら大きく変更してよい
+## Table of Contents
 
-と書くだけでは足りません。
+- [The Problem: The Minimal-Diff Trap](#the-problem-the-minimal-diff-trap)
+- [Core Engineering Principles](#core-engineering-principles)
+- [System Architecture](#system-architecture)
+- [Key Mechanisms](#key-mechanisms)
+  - [1. Objective Function Without Minimal-Diff Bias](#1-objective-function-without-minimal-diff-bias)
+  - [2. The Intervention Ladder (L0–L6)](#2-the-intervention-ladder-l0l6)
+  - [3. Counterfactual Architecture Check](#3-counterfactual-architecture-check)
+  - [4. Divergent Generation & Diversity Gate](#4-divergent-generation--diversity-gate)
+  - [5. Cheap-Falsification-First Scheduling (MAB)](#5-cheap-falsification-first-scheduling-mab)
+  - [6. Parallel Exploration via Isolated Git Worktrees](#6-parallel-exploration-via-isolated-git-worktrees)
+  - [7. Outer Behavior Tree + Inner Deep FSM Controller](#7-outer-behavior-tree--inner-deep-fsm-controller)
+  - [8. Multi-Tier Verification & Metamorphic / Invariant Oracles](#8-multi-tier-verification--metamorphic--invariant-oracles)
+  - [9. Clean-Room Reviewer](#9-clean-room-reviewer)
+  - [10. Structured Evidence Store & Lossless Context Compactor](#10-structured-evidence-store--lossless-context-compactor)
+  - [11. GitHub Broker & Verified Commit SHA Invariant](#11-github-broker--verified-commit-sha-invariant)
+  - [12. Durable SQLite FTS5 Memory & Promotion Ladder](#12-durable-sqlite-fts5-memory--promotion-ladder)
+  - [13. Calibrated DPO Trajectory Exporter](#13-calibrated-dpo-trajectory-exporter)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Environment Setup](#environment-setup)
+  - [Usage](#usage)
+- [Configuration](#configuration)
+  - [GitHub App Setup](#github-app-setup)
+  - [Multi-Dimensional Budget Governor](#multi-dimensional-budget-governor)
+- [Repository Structure](#repository-structure)
+- [Testing & Quality Assurance](#testing--quality-assurance)
+- [License](#license)
 
-むしろハーネス側で、
+---
+
+## The Problem: The Minimal-Diff Trap
+
+Conventional coding agents typically optimize for the shortest edit distance that satisfies immediate test cases:
 
 ```text
-変更量 = 最適化対象ではない
+Bug / Task Influx ──▶ LLM predicts 3-line patch ──▶ Tests Pass ──▶ Technical Debt Accumulates
 ```
 
-とします。
+This heuristic leads to severe engineering failures:
+1. **Symptom Hiding**: Wrapping failing code in `try-catch` blocks or adding ad-hoc `if` branches instead of fixing broken architectural assumptions.
+2. **Context Anchoring**: Blindly accepting existing codebase flaws as immutable design constraints.
+3. **Self-Grading Bias (Echo Chamber)**: Allowing the same LLM instance that authored the code to declare "implementation successful" without independent adversarial verification.
+4. **Context Window Contamination**: Accumulating megabytes of failed trial traces, which dilutes attention and degrades model reasoning over extended sessions.
 
-候補の評価を例えば、
+`my_harness` replaces this fragile paradigm with a rigorous scientific method: **Hypothesis Generation $\rightarrow$ Counter-Argument Falsification $\rightarrow$ Parallel Isolated Execution $\rightarrow$ Objective Machine Verification $\rightarrow$ Blind Peer Review**.
+
+---
+
+## Core Engineering Principles
+
+From [AGENTS.md](AGENTS.md):
+
+1. **The existing implementation is evidence about the system, not a design constraint.**
+2. **Optimization Priorities**:
+   1. Correctness
+   2. Simplicity of the resulting system
+   3. Architectural coherence
+   4. Performance
+   5. Maintainability
+   *(Do NOT optimize for minimizing the size of the diff).*
+3. **Backward compatibility is required only when it is an explicit project requirement.**
+4. **Architectural changes require falsifiable rationale, empirical evidence, and machine validation.**
+
+---
+
+## System Architecture
+
+```text
+                                User Goal
+                                    │
+                                    ▼
+       Repo Inspect (Topology / AST / Git History / Invariants)
+                                    │
+                                    ▼
+         Problem Signature Generation (Anti-Memory Anchoring)
+                                    │
+                                    ▼
+         Memory / Skill Retrieval (Signature-targeted FTS5)
+                                    │
+                                    ▼
+            Fast / Deep Triage ─────────────────────────┐
+              │ FAST                                     │ DEEP
+              ▼                                          ▼
+       FastImplement (Single Worktree)      Research Router (live web search)
+              │                                          │
+              ▼                                          ▼
+       Independent Verify                         Diagnose (Intervention Ladder L0–L6)
+              │                                          │
+              ▼                                          ▼
+              │                             Diversity Gate (Orthogonal hypotheses)
+              │                                          │
+              ▼                                          ▼
+              │                             Falsification (Counter-argument scrutiny)
+              │                                          │
+              ▼                                          ▼
+              │                             Parallel Worktrees (Isolated A / B / C)
+              │                                          │
+              ▼                                          ▼
+              │                             Test & Oracle Integrity Gate (Anti-cheat)
+              │                                          │
+              ▼                                          ▼
+              │                             Machine Verification (Exit code / Regressions)
+              │                                          │
+              ▼                                          ▼
+              │                             Per-Candidate Hard Gate (Zero tolerance)
+              │                                          │
+              ▼                                          ▼
+              │                             Pareto / Lexicographic Sort (Evidence score)
+              │                                          │
+              ▼                                          ▼
+              │                             Candidate Queue [C1, C2, ..., Cn]
+              │                                          │
+              ▼                                          ▼
+              └────────────────────────────▶ Clean-Room Review (read-only sandbox)
+                                              │
+                                              ├── REJECT ──▶ Next in queue available?
+                                              │               ├── YES ──▶ Review next candidate
+                                              │               └── NO  ──▶ Structured Backtrack Router
+                                              │                             ├── IMPLEMENTATION_ERROR ──▶ Implement
+                                              │                             ├── FALSIFICATION_GAP    ──▶ Falsify
+                                              │                             ├── ROOT_CAUSE_ERROR     ──▶ Diagnose
+                                              │                             ├── EXTERNAL_SPEC        ──▶ Research
+                                              │                             └── REPO_MODEL_ERROR     ──▶ Inspect
+                                              └── APPROVED
+                                                    │
+                                                    ▼
+                                            Integration Verification (Full Test Suite)
+                                                    │
+                                                    ▼
+                                            Publish (GitHub Broker Pull Request)
+                                                    │
+                                                    ▼
+                                            Provenance Memory & Skill Crystallization
+                                            ├── Record Architecture Decision Record (ADR)
+                                            ├── Crystallize Reusable Procedural Skills
+                                            ├── Update Verified Durable Memory (FTS5)
+                                            └── Export Calibrated DPO Trajectories
+```
+
+---
+
+## Key Mechanisms
+
+### 1. Objective Function Without Minimal-Diff Bias
+
+The harness decouples diff size from candidate scoring. Candidates are ranked using an evidence-based objective function:
+
+$
+S = w_c C + w_p P + w_m M + w_a A + w_t T - w_r R - w_g G
+$
+
+Where:
+- $C$: Correctness (test passage & invariant proofs)
+- $P$: Performance delta (benchmark throughput/latency)
+- $M$: Maintainability & modular simplicity
+- $A$: Architectural coherence
+- $T$: Empirical test evidence density
+- $R$: Regression risk
+- $G$: Migration / transitional cost
+
+Diff line count is **never** an explicit metric. A 2,000-line modular overhaul is favored over a 2-line workaround if it yields higher architectural coherence and lower regression risk.
+
+### 2. The Intervention Ladder (L0–L6)
+
+To prevent models from prematurely defaulting to either surface-level patches or ungrounded rewrites, exploration is categorized across explicit intervention tiers:
+
+| Level | Tier | Description | Typical Use Case |
+|---|---|---|---|
+| **L0** | Investigation Only | Root-cause analysis, reproduction scripts, no code changes | Diagnostic phase |
+| **L1** | Local Implementation | Targeted fix within a single function or module | Isolated bug fix |
+| **L2** | Module Redesign | Refactoring interface/state ownership within one module | Encapsulation leaks |
+| **L3** | Subsystem Redesign | Cross-module contract adjustments and pipeline re-alignment | Multi-module coupling |
+| **L4** | Architecture Replacement | Overhauling subsystems, state managers, or runtime layers | Invariant collapse |
+| **L5** | Research-Oriented Redesign | Novel algorithmic or protocol restructuring | Hard scalability ceilings |
+| **L6** | Complete Architecture Reset | Clean-slate rewrite under identical external requirements | Total technical bankruptcy |
+
+**Automatic Escalation Triggers:**
+- Same failure pattern repeated across $\ge 3$ distinct call sites.
+- Same bug class previously patched $\ge 2$ times in git history.
+- Multiple modules mutating the same shared state without clear ownership.
+- Every feature increment introduces new conditional branches (`if`/`switch`) to core abstractions.
+
+### 3. Counterfactual Architecture Check
+
+During architectural diagnosis, the model is confronted with an anti-anchoring question:
+> *"If this codebase did not exist today and you were given only the functional requirements, would you choose the current architecture?"*
+
+If the answer is `No`, the model must justify maintaining the legacy design versus migrating to the ideal design, neutralizing status-quo bias.
+
+### 4. Divergent Generation & Diversity Gate
+
+The system prompts multiple distinct architectural stances in parallel:
+- **Pragmatist**: Resolves the problem while maximizing reuse of the current design.
+- **Architectural Reformer**: Redesigns boundaries, state ownership, and dataflow.
+- **First-Principles Theorist**: Re-derives algorithms from scratch, disregarding existing code.
+- **External Analogy Scout**: Adapts patterns proven in other ecosystems or literature.
+
+The **Diversity Gate** mathematically ensures that surviving candidates are structurally orthogonal before wasting compute on implementation.
+
+### 5. Cheap-Falsification-First Scheduling (MAB)
+
+Before expensive code generation, a dedicated **Falsifier** attempts to break each hypothesis with counter-arguments, race conditions, edge-case proofs, and complexity traps.
+
+Candidates are scheduled using an Information-Gain-per-Cost Multi-Armed Bandit (MAB):
 
 $$
-S =
-w_c C +
-w_p P +
-w_m M +
-w_a A +
-w_t T
--
-w_r R
--
-w_g G
+\text{Priority} = \frac{\Delta \text{Information Gain}}{\text{Estimated Verification Cost}}
 $$
 
-とします。
+Cheap, high-risk tests run first to prune invalid hypotheses with minimal token and runtime expenditure.
 
-* `C`: correctness
-* `P`: performance
-* `M`: maintainability
-* `A`: architectural consistency
-* `T`: test evidence
-* `R`: regression risk
-* `G`: migration cost
+### 6. Parallel Exploration via Isolated Git Worktrees
 
-ここには**diff行数そのものを入れません**。
+Unlike naive agents that pollute the workspace with abandoned intermediate changes, `my_harness` isolates every candidate into dedicated Git worktrees (`worktrees/run-<id>-<cand>/`):
+- Clean git state with separate working trees.
+- Parallel worker execution in isolated filesystem roots.
+- Automated branch cleanup upon candidate rejection.
 
-3000行変更でも設計として正しければ採用し、3行変更でも根本原因を隠すだけなら却下します。
+### 7. Outer Behavior Tree + Inner Deep FSM Controller
 
-ただし変更量は `R` や `G` を通じて間接的にコストになります。
+The harness employs a dual-control architecture:
+- **Outer Behavior Tree (BT)**: Manages global strategy, high-level fallbacks, timeouts, retries, and clean-up using `Sequence`, `Selector`, `Parallel`, and decorator nodes (`Tracer`, `Retry`, `Timeout`).
+- **Inner Deep FSM (`DeepController`)**: Orchestrates precision transitions between `Diagnose`, `Falsify`, `Implement`, `Verify`, and `Review`.
 
-これによって、
+When a candidate fails, the **Backtrack Router** classifies the failure into one of 5 structured classes:
+1. `IMPLEMENTATION_ERROR` $\rightarrow$ Jump directly to `Implement`
+2. `FALSIFICATION_GAP` $\rightarrow$ Jump to `Falsify`
+3. `ROOT_CAUSE_ERROR` $\rightarrow$ Jump to `Diagnose`
+4. `EXTERNAL_SPEC` $\rightarrow$ Jump to `Research`
+5. `REPO_MODEL_ERROR` $\rightarrow$ Jump to `Inspect`
+
+### 8. Multi-Tier Verification & Metamorphic / Invariant Oracles
+
+The harness never trusts the LLM's own declaration that code works. Verification is performed mechanically:
+- **Baseline-Relative Hard Gate & Identity Delta**: Computes hash-based set differences of compiler/linter diagnostics ($\text{Cand} \setminus \text{Base} = \emptyset$) to prevent accidental regression masking.
+- **Oracle Integrity Gate**: Detects and rejects unauthorized modifications to test suites or verification fixtures.
+- **Tier 3 Metamorphic / Invariant Oracles**: Evaluates algebraic properties independent of static test cases:
+  - Idempotence: $f(f(x)) = f(x)$
+  - Round-trip serialization: $\text{decode}(\text{encode}(x)) = x$
+  - State commutativity and invariant bounds.
+
+### 9. Clean-Room Reviewer
+
+Approved candidates are submitted to an independent, blind **Clean-Room Reviewer**:
+- Spawned in an isolated thread with **no prior implementation context** (preventing sunk-cost rationalization).
+- Sandboxed in `read-only` mode with disabled network access.
+- Given only the PR diff, the original goal, and the verification metrics.
+- Evaluates the change from the perspective of an adversarial principal engineer.
+
+### 10. Structured Evidence Store & Lossless Context Compactor
+
+Extended self-healing loops suffer from context pollution. `my_harness` separates volatile scratchpads from permanent facts:
+- **4-Layer Structured Evidence Store**: Immutable records divided into `Observation`, `Assertion`, `Inference`, and `Decision`.
+- **Context Compactor**: Upon backtrack or phase transitions, transient chat logs and massive stack traces are purged. Only negative constraints, violated invariants, and distilled lessons are preserved into prompt projections.
+
+### 11. GitHub Broker & Verified Commit SHA Invariant
+
+Security and branch integrity are strictly maintained:
+- **Least-Privilege GitHub App**: No raw personal access tokens (PAT) or `GITHUB_TOKEN` credentials are exposed to the LLM. All operations flow through a strictly typed `GitHubBroker`.
+- **Verified Commit SHA Invariant**: Commits staged on `origin/main` are cryptographically verified through full local integration test suites. Only the exact commit SHA that passed all tests is pushed to GitHub:
+
+$$
+\text{SHA}_{\text{verified}} \equiv \text{SHA}_{\text{PR}}
+$$
+
+### 12. Durable SQLite FTS5 Memory & Promotion Ladder
+
+Past discoveries, architecture decision records (ADRs), and procedural skills are stored in an embedded SQLite FTS5 database. Knowledge progresses through a monotonic verification lifecycle:
 
 ```text
-最小diff
-↓
-最も安全
-
+UNVERIFIED (0.2)
+       │
+       ▼
+LOCAL_TEST_PASSED (0.5)
+       │
+       ▼
+LOCAL_INTEGRATION_VERIFIED (0.8)
+       │
+       ▼
+PR_CREATED (0.85)
+       │
+       ▼
+MERGED (1.0)
 ```
 
-というCodexが陥りやすいヒューリスティックを崩せます。
+Problem signatures generated during repository inspection match relevant historical lessons via BM25 full-text indexing, preventing recurrent architectural mistakes across runs.
+
+### 13. Calibrated DPO Trajectory Exporter
+
+Execution trajectories are automatically recorded and exported in Direct Preference Optimization (DPO) compatible JSONL datasets (`.agent/trajectories/`). Winning solutions form `chosen` entries while rejected candidates form `rejected` entries, annotated with empirical confidence weights based on reviewer orthogonality and invariant verification depth.
 
 ---
 
-## 2. Codexに「現在のコードは仕様ではない」と明示する
+## Getting Started
 
-`AGENTS.md` は巨大化させない方がいいです。最近のOpenAIのCodex向けガイダンスでも、強いモデルに過剰な恒常指示を与えると逆に制約しすぎることが指摘されています。([OpenAI Developers][2])
+### Prerequisites
 
-AGENTS.mdには原則だけ置きます。
+- **Node.js**: `v20.0.0` or higher
+- **Package Manager**: `pnpm` (recommended, `v10.5.2`+) or `npm`
+- **Git**: Installed and configured on your path
+- **OpenAI API Key**: With access to modern reasoning models (e.g. `gpt-4o`, `codex`)
 
-```md
-# Engineering principles
+### Installation
 
-The existing implementation is evidence about the system, not a design constraint.
+```bash
+# Clone the repository
+git clone https://github.com/mas2194/my_harness.git
+cd my_harness
 
-Optimize for:
-1. correctness
-2. simplicity of the resulting system
-3. architectural coherence
-4. performance
-5. maintainability
+# Install dependencies
+pnpm install
+# or: npm install
 
-Do NOT optimize for minimizing the size of the diff.
-
-Backward compatibility is required only when it is an explicit project requirement.
-
-When a symptom suggests a deeper design problem, investigate the underlying
-assumption rather than layering another workaround on top.
-
-Do not refactor merely for aesthetics. Architectural changes must have
-evidence, a falsifiable rationale, and validation.
-
-Before committing to an implementation, consider:
-- a local fix
-- a subsystem-level solution
-- a different architectural approach
-
-You do not need to choose the largest change. Choose the approach best
-supported by evidence.
+# Build the TypeScript project
+pnpm run build
+# or: npm run build
 ```
 
-残りはphaseごとのpromptにします。
+### Environment Setup
+
+Copy `.env.example` to `.env` and configure your credentials:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```env
+# LLM / OpenAI API Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4o
+
+# Optional: GitHub App Integration for automated PR publication
+GITHUB_APP_ID=
+GITHUB_APP_PRIVATE_KEY_PATH=./secrets/github-app.private-key.pem
+GITHUB_APP_INSTALLATION_ID=
+GITHUB_TARGET_OWNER=
+GITHUB_TARGET_REPO=
+
+# Execution Configuration
+MAX_PARALLEL_EXPERIMENTS=3
+EXPERIMENT_TIMEOUT_MS=600000
+WORKTREES_DIR=./worktrees
+HARNESS_TEST_COMMAND="npm test"
+```
+
+### Usage
+
+Run the harness against a specific engineering objective:
+
+```bash
+# Execute via tsx
+npx tsx src/main.ts "Migrate storage layer to SQLite and eliminate duplicate state"
+
+# Or after building
+node dist/main.js "Refactor caching module to support TTL and cache stampsede prevention"
+```
+
+During execution, `my_harness` will:
+1. Inspect the repository AST, topology, and invariant contracts.
+2. Formulate diagnostic hypotheses across multiple intervention levels.
+3. Subject hypotheses to counter-argument falsification.
+4. Spawn isolated Git worktrees and implement surviving candidates.
+5. Execute compiler, test suite, and invariant oracles against all candidates.
+6. Submit the winning candidate to clean-room review.
+7. Integrate the verified commit into the workspace or publish an authenticated GitHub Pull Request.
 
 ---
 
-# 3. 一番重要な仕組み：Intervention Ladder
-
-Codexに最初からリファクタさせるのではなく、
-
-```text
-L0 investigation only
-L1 local implementation
-L2 module redesign
-L3 subsystem redesign
-L4 architecture replacement
-L5 fundamental/research-oriented redesign
-```
-
-という介入レベルを持たせます。
-
-Architectフェーズで、
-
-```json
-{
-  "rootCause": "...",
-  "violatedInvariant": "...",
-  "currentArchitectureAssumption": "...",
-  "candidates": [
-    {
-      "level": 1,
-      "hypothesis": "...",
-      "experiment": "..."
-    },
-    {
-      "level": 3,
-      "hypothesis": "...",
-      "experiment": "..."
-    },
-    {
-      "level": 4,
-      "hypothesis": "...",
-      "experiment": "..."
-    }
-  ]
-}
-```
-
-をstructured outputで返させます。
-
-Codex SDKはJSON Schemaによるstructured outputを直接扱えます。([GitHub][1])
-
-これがかなり効きます。
-
----
-
-# 4. 「アーキテクチャを疑う」自動昇格条件を作る
-
-プロンプト任せにせずハーネスにルールを入れます。
-
-例えば以下のどれかが成立したらL2以上を必ず探索します。
-
-```text
-同種の特殊ケースが3箇所以上
-        ↓
-設計境界がおかしい可能性
-
-同じbugを過去に2回以上fix
-        ↓
-局所修正禁止
-
-複数moduleが同じstateを所有
-        ↓
-source-of-truth設計を再検討
-
-feature追加のたびに既存if/switchが増える
-        ↓
-abstractionを再検討
-
-performance targetを局所最適化で満たせない
-        ↓
-data flow / algorithm / architectureを再検討
-
-API変換コードが何層にも存在
-        ↓
-module boundaryを再検討
-```
-
-さらに強力なのが、
-
-### Counterfactual Architecture Check
-
-Architectに必ず一度、
-
-> このrepositoryが今日存在せず、同じ要求だけ渡された場合、あなたなら同じarchitectureを選ぶか？
-
-と問いかけます。
-
-`No`の場合、
-
-```text
-現在設計を維持する理由
-vs
-理想設計へ移行するコスト
-```
-
-を比較します。
-
-これで「既存コードを所与として考える」アンカリングをかなり弱められます。
-
----
-
-# 5. 「ひらめき」を実装可能な探索に変える
-
-ここは単純なbrainstorm agentを置くより、
-
-## Divergent → Falsification
-
-にします。
-
-例えばArchitectを3〜5個spawnします。
-
-```text
-Architect A
-既存設計を最大限活かして解決
-
-Architect B
-境界・責務・データフローから再考
-
-Architect C
-アルゴリズムそのものから再考
-
-Architect D
-「現在のコードを見なかった」と仮定して設計
-
-Architect E
-他分野の類似問題・OSS・論文から解決
-```
-
-そのあと別のCodexを、
-
-```text
-Falsifier
-```
-
-として、
-
-```text
-各案が間違っていることを証明しようとせよ。
-反例・性能劣化・race・複雑性・隠れた前提を探せ。
-```
-
-とします。
-
-つまり、
-
-```text
-idea
- ↓
-criticism
- ↓
-experiment
- ↓
-evidence
-```
-
-まで要求します。
-
-これで「それっぽいアイデア」ではなく、かなり研究に近い探索になります。
-
-Codexには現在native multi-agent機能もあり、`spawn_agent` 等の連携機能が安定版として提供されています。([developers.openai.com][3])
-
----
-
-# 6. ただし候補実装はSDK側でworktree分離する
-
-ここはCodex任せにしない方がいいです。
-
-例えば3案なら、
-
-```text
-main
-│
-├─ worktrees/run-42-local
-│    agent/run-42/local
-│
-├─ worktrees/run-42-subsystem
-│    agent/run-42/subsystem
-│
-└─ worktrees/run-42-redesign
-     agent/run-42/redesign
-```
-
-とします。
-
-各worktreeごとに別Codex thread。
-
-```ts
-function createWorker(directory: string) {
-  return codex.startThread({
-    workingDirectory: directory,
-
-    sandboxMode: "workspace-write",
-
-    approvalPolicy: "never",
-
-    modelReasoningEffort: "xhigh",
-
-    networkAccessEnabled: true,
-    webSearchMode: "live",
-  });
-}
-```
-
-Codex SDKはworking directoryをthread単位で指定できます。([github.com][1])
-
-これが非常に重要です。
-
-同一working treeで複数案を検討させると、
-
-```text
-案Aの残骸
-   +
-案B
-   +
-案C
-```
-
-になりやすい。
-
-worktreeなら本当に並列探索できます。
-
-OpenAI自身も長時間CodexタスクではGit worktree、durable project memory、milestoneごとの検証を重要なパターンとして挙げています。([OpenAI Developers][4])
-
----
-
-# 7. Harness本体はFSMにする
-
-LLMに、
-
-> 次は何をする？
-
-まで完全委任しないのがポイントです。
-
-```ts
-enum Phase {
-  Inspect,
-  Diagnose,
-  Diverge,
-  Experiment,
-  Implement,
-  Verify,
-  Compare,
-  Integrate,
-  Review,
-  Publish,
-  Learn,
-}
-```
-
-そして、
-
-```ts
-while (!state.finished) {
-  switch (state.phase) {
-    case Phase.Inspect:
-      state.repo = await inspectRepo();
-      break;
-
-    case Phase.Diagnose:
-      state.diagnosis = await diagnose(state);
-      break;
-
-    case Phase.Diverge:
-      state.candidates = await generateCandidates(state);
-      break;
-
-    case Phase.Experiment:
-      state.candidates =
-        await runExperiments(state.candidates);
-      break;
-
-    case Phase.Implement:
-      state.implementations =
-        await implementInWorktrees(state.candidates);
-      break;
-
-    case Phase.Verify:
-      state.results =
-        await verifyAll(state.implementations);
-      break;
-
-    case Phase.Compare:
-      state.selection =
-        await compareWithEvidence(state.results);
-      break;
-
-    case Phase.Integrate:
-      await integrate(state.selection);
-      break;
-
-    case Phase.Review:
-      state.review = await cleanRoomReview();
-      break;
-
-    case Phase.Publish:
-      await publishToGithub(state);
-      break;
+## Configuration
+
+### GitHub App Setup
+
+For production automation where the harness creates branches and pull requests, configure a GitHub App with the following least-privilege repository permissions:
+
+| Permission | Access | Purpose |
+|---|---|---|
+| **Contents** | Read & Write | Branch creation, commit pushes, file changes |
+| **Pull Requests** | Read & Write | Opening PRs, adding review comments |
+| **Issues** | Read & Write | Logging architectural debt issues |
+| **Checks** | Read-Only | Reading remote CI status |
+| **Actions / Workflows** | Read-Only (Write optional) | Reading workflow outcomes |
+
+Save the private key `.pem` file to `./secrets/github-app.private-key.pem` and populate the `GITHUB_APP_*` values in `.env`.
+
+### Multi-Dimensional Budget Governor
+
+To prevent run-away exploration costs, `my_harness` enforces a multi-dimensional budget governor:
+
+```typescript
+const harness = new HarnessStateMachine({
+  goal: "Refactor core event loop",
+  budgetLimits: {
+    maxIterations: 5,           // Maximum FSM loop iterations
+    maxCandidates: 8,           // Maximum candidate implementations
+    maxTestRuns: 20,            // Maximum automated test runs
+    maxBacktracks: 4,           // Maximum phase backtracks
+    wallClockTimeoutMs: 1800000 // 30 minutes wall-clock timeout
   }
-
-  await persist(state);
-}
+});
 ```
-
-ここは普通のコードです。
-
-Codexには、
-
-```text
-判断・探索・実装
-```
-
-をさせ、
-
-ハーネスには、
-
-```text
-状態管理
-権限制御
-Git管理
-評価
-再試行
-```
-
-をさせます。
 
 ---
 
-# 8. GitHubはCodexにtokenを直接渡さない
-
-ここも設計上かなり重要です。
-
-こうしない方がいいです。
+## Repository Structure
 
 ```text
-Codex sandbox
-   │
-   └── GITHUB_TOKEN
-         ↓
-       gh CLI
-```
-
-代わりに、
-
-```text
-Codex
-  ↓
-typed request
-  ↓
-GitHub Broker
-  ↓
-GitHub App
-  ↓
-GitHub API
-```
-
-とします。
-
-例えばBrokerが公開する操作は、
-
-```ts
-createBranch()
-pushBranch()
-createPullRequest()
-updatePullRequest()
-readChecks()
-readWorkflowRun()
-requestReview()
-enableAutoMerge()
-createIssue()
-commentIssue()
-```
-
-程度。
-
-token自体には触らせません。
-
-OpenAIのCodexプラットフォーム設計も、ホストアプリケーション側がツールや承認境界を管理する構造を前提にしています。([OpenAI Developers][5])
-
----
-
-# 9. GitHub Appを使う
-
-PATよりGitHub App installation tokenの方がこの用途には向いています。
-
-基本的には、
-
-```text
-Contents          read/write
-Pull requests     read/write
-Issues            read/write
-Checks            read
-Actions           read
-```
-
-程度。
-
-Codexが`.github/workflows/**`自体も改善できるようにするなら、
-
-```text
-Workflows         write
-```
-
-を追加します。
-
-GitHub公式でも、HTTP Git操作にはContents権限、Actions workflowファイルを編集する場合にはWorkflows repository permissionが必要とされています。([GitHub Docs][6])
-
----
-
-# 10. workflow自体もCodexの改善対象にする
-
-ここはあなたの要件とかなり相性がいいです。
-
-普通のcoding agentは、
-
-```text
-CIが落ちた
-↓
-コードを変更
-```
-
-だけやります。
-
-このハーネスなら、
-
-```text
-CIが落ちた
- ↓
-原因分類
-
-code defect?
-test defect?
-toolchain?
-workflow?
-cache?
-dependency?
-architecture?
-```
-
-まで行います。
-
-したがって場合によってはCodex自身が、
-
-```text
-.github/workflows/ci.yml
-```
-
-を書き換えます。
-
-ただし、
-
-```text
-workflow変更
-  ↓
-専用branch
-  ↓
-PR
-  ↓
-workflow syntax validation
-  ↓
-branch protection
-```
-
-に必ず通す。
-
-workflowを直接mainへpushさせない方がいいです。
-
-Codex用の公式GitHub Actionも存在し、GitHub Actions内から権限を絞ったCodex実行ができます。([GitHub][7])
-
----
-
-# 11. Git branchingもモデルに「提案」させ、Policy Engineが実行する
-
-例えばCodexから、
-
-```json
-{
-  "gitStrategy": {
-    "type": "split-pr",
-    "branches": [
-      {
-        "name": "agent/42/refactor-core",
-        "purpose": "core architecture migration"
-      },
-      {
-        "name": "agent/42/adapt-callers",
-        "dependsOn": "agent/42/refactor-core"
-      }
-    ]
-  }
-}
-```
-
-を出させる。
-
-Policy Engineで、
-
-```text
-mainへのdirect push           reject
-force push main               reject
-delete default branch         reject
-
-agent/*作成                   allow
-commit                         allow
-push agent/*                  allow
-PR作成                         allow
-PR更新                         allow
-CI再実行                       allow
-
-workflow変更                   allow through PR
-dependency major update        PR required
-secret変更                     reject
-branch protection変更          reject
-```
-
-とします。
-
-つまり、
-
-**Git戦略そのものはCodexが考えるが、GitHubの不変条件はCodexには変更できない**
-
-構造です。
-
----
-
-# 12. 「実装できた」をCodex自身に判定させない
-
-これも重要です。
-
-例えばHarnessが、
-
-```text
-npm test
-npm run lint
-npm run typecheck
-npm run build
-
-benchmark
-integration tests
-property tests
-mutation tests
-```
-
-などを直接実行。
-
-Codexの、
-
-> 実装は問題なく動作しています
-
-という文章は採点対象にしません。
-
-採点対象は、
-
-```json
-{
-  "tests": {
-    "passed": 327,
-    "failed": 0
-  },
-  "benchmark": {
-    "before": 42.1,
-    "after": 17.6
-  },
-  "complexity": {},
-  "regressions": []
-}
-```
-
-です。
-
----
-
-# 13. Clean-room reviewerを置く
-
-実装したthread自身にレビューさせない方がいいです。
-
-新しいthreadを作り、
-
-```text
-You did not implement this change.
-
-Review the resulting diff as if it came from an unknown engineer.
-
-Try to find:
-- incorrect assumptions
-- accidental compatibility breaks
-- hidden state duplication
-- race conditions
-- architecture regressions
-- unnecessary complexity
-- cases where the patch hides rather than fixes the root cause
-```
-
-とします。
-
-さらに、
-
-```text
-implementation contextを渡さない
-```
-
-のも有効です。
-
-PR diff、仕様、テスト結果だけを渡す。
-
-かなり違う問題を発見します。
-
----
-
-# 14. 「ひらめき探索」専用phaseを入れる
-
-これはかなり面白い部分です。
-
-通常の、
-
-```text
-Diagnose → Implement
-```
-
-の間に、
-
-```text
-Discovery
-```
-
-を入れます。
-
-例えば、
-
-```text
-Spend one reasoning pass looking for a qualitatively different solution.
-
-You may challenge:
-- the algorithm
-- data representation
-- concurrency model
-- control flow
-- persistence model
-- protocol
-- architecture
-- build system
-
-Look for solutions that would not naturally emerge from incrementally
-editing the current implementation.
-
-Every idea must have a cheap experiment capable of disproving it.
-```
-
-とする。
-
-ただし採用条件は、
-
-```text
-novelty
-```
-
-ではありません。
-
-```text
-novelty
- +
-evidence
-```
-
-です。
-
-これで「ひらめいたから全面書き換え」が防げます。
-
----
-
-# 15. Repo内にdurable memoryを持たせる
-
-OpenAIの長時間Codex実験でも、この部分がかなり重要だったとされています。spec、plan、decision、statusをファイルとして残し、検証をmilestoneごとに実施することで長時間タスクのcoherenceを保っています。([OpenAI Developers][4])
-
-私はこうします。
-
-```text
-.agent/
-├── PROJECT.md
-├── ARCHITECTURE.md
-├── CONSTRAINTS.md
-│
-├── decisions/
-│   ├── ADR-0001.md
-│   └── ADR-0002.md
-│
-└── runs/
-    └── 2026-09-24-0042/
-        ├── objective.json
-        ├── diagnosis.json
-        ├── hypotheses.json
-        ├── experiments.json
-        ├── results.json
-        └── final.json
-```
-
-特に、
-
-```text
-なぜそのarchitectureになったのか
-```
-
-を残すのが大事です。
-
-次のCodexがコードだけ見て、
-
-> これは変な実装なので綺麗にしよう
-
-と過去の意図を壊すのを防げます。
-
----
-
-# 16. Hooksも使う
-
-現在のCodexには、
-
-* `SessionStart`
-* `PreToolUse`
-* `PostToolUse`
-* `PermissionRequest`
-* `PreCompact`
-* `PostCompact`
-* `SubagentStart`
-* `SubagentStop`
-* `Stop`
-
-などのhookがあります。([developers.openai.com][3])
-
-例えば、
-
-```text
-PreToolUse
-  git push main
-       ↓
-      reject
-```
-
-や、
-
-```text
-PostToolUse
-  cargo test
-       ↓
- result DBへ保存
-```
-
-や、
-
-```text
-Stop
- ↓
-未実行のrequired testsが存在
- ↓
-stopを拒否してvalidationへ戻す
-```
-
-という使い方ができます。
-
-これはハーネスをかなり堅牢にします。
-
----
-
-# 17. 推奨ディレクトリ構成
-
-実装するなら、このくらいにします。
-
-```text
-autonomous-codex/
+my_harness/
+├── AGENTS.md                  # Engineering principles & negative constraints
+├── .env.example               # Environment variables template
+├── prompts/                   # Specialized system prompts for each agent role
+│   ├── architect.md           # Divergent hypothesis generator
+│   ├── falsifier.md           # Adversarial counter-argument reviewer
+│   ├── implementer.md         # Worktree implementation worker
+│   ├── researcher.md          # External specification & literature investigator
+│   └── reviewer.md            # Clean-room blind peer reviewer
 ├── src/
-│   ├── main.ts
-│   │
-│   ├── orchestrator/
-│   │   ├── state-machine.ts
-│   │   ├── state.ts
-│   │   └── scheduler.ts
-│   │
-│   ├── codex/
-│   │   ├── client.ts
-│   │   ├── thread.ts
-│   │   └── events.ts
-│   │
-│   ├── phases/
-│   │   ├── inspect.ts
-│   │   ├── diagnose.ts
-│   │   ├── architect.ts
-│   │   ├── discover.ts
-│   │   ├── falsify.ts
-│   │   ├── experiment.ts
-│   │   ├── implement.ts
-│   │   ├── verify.ts
-│   │   ├── compare.ts
-│   │   └── review.ts
-│   │
-│   ├── git/
-│   │   ├── worktree.ts
-│   │   ├── branch.ts
-│   │   └── diff.ts
-│   │
-│   ├── github/
-│   │   ├── app.ts
-│   │   ├── broker.ts
-│   │   ├── pull-request.ts
-│   │   └── workflow.ts
-│   │
-│   ├── policy/
-│   │   ├── git-policy.ts
-│   │   ├── file-policy.ts
-│   │   └── risk.ts
-│   │
-│   ├── evaluator/
-│   │   ├── tests.ts
-│   │   ├── benchmark.ts
-│   │   └── score.ts
-│   │
-│   └── schemas/
-│       ├── diagnosis.ts
-│       ├── candidate.ts
-│       └── result.ts
-│
-├── prompts/
-│   ├── architect.md
-│   ├── falsifier.md
-│   ├── researcher.md
-│   ├── implementer.md
-│   └── reviewer.md
-│
-└── AGENTS.md
+│   ├── main.ts                # CLI entry point
+│   ├── bt/                    # Behavior Tree engine (Composites, Decorators, Nodes)
+│   ├── orchestrator/          # Hybrid Orchestration (BT, Deep FSM, Evidence Store, Compactor)
+│   │   ├── tree.ts            # Behavior tree structure definition
+│   │   ├── deep-controller.ts # Inner FSM controller for deep exploration
+│   │   ├── backtrack-router.ts# Structured 5-class failure routing
+│   │   ├── evidence-store.ts  # 4-layer immutable structured evidence store
+│   │   └── compactor.ts       # Context distillation and state compactor
+│   ├── phases/                # Autonomous execution phases
+│   │   ├── inspect-repo.ts    # Codebase topology, AST & invariant inspection
+│   │   ├── triage.ts          # Fast vs Deep execution path router
+│   │   ├── architect.ts       # Intervention Ladder hypothesis generator
+│   │   ├── diversity-gate.ts  # Orthogonal candidate filter
+│   │   ├── falsify.ts         # Adversarial counter-argument scrutiny
+│   │   ├── implement.ts       # Worktree-isolated code synthesis
+│   │   └── review.ts          # Blind clean-room reviewer
+│   ├── evaluator/             # Verification engines & oracles
+│   │   ├── runner.ts          # Machine test & benchmark runner
+│   │   ├── integrity.ts       # Test & fixture anti-tampering gate
+│   │   ├── oracle.ts          # Tier 3 metamorphic / invariant oracles
+│   │   └── pareto.ts          # Multi-objective Pareto / lexicographic sorter
+│   ├── git/                   # Git worktree & branch manager
+│   ├── github/                # Authenticated GitHub App broker & policy engine
+│   ├── journal/               # Execution journal & crash-recovery reconciliation
+│   ├── memory/                # SQLite FTS5 durable memory & verification ladder
+│   ├── skills/                # Reusable procedural skill crystallization (SKILL.md)
+│   ├── budget/                # Multi-dimensional budget tracker
+│   └── trajectory/            # DPO preference dataset exporter
+└── tests/                     # Vitest comprehensive test suites (83 tests)
 ```
 
 ---
 
-# 18. 中核コードは意外と小さくできる
+## Testing & Quality Assurance
 
-概念的には、
+The codebase is thoroughly tested across unit, integration, and metamorphic evaluation suites:
 
-```ts
-const diagnosis = await diagnose(repo);
+```bash
+# Run the complete test suite
+pnpm test
+# or: npm test
 
-const ideas = await Promise.all([
-  architect(diagnosis, "incremental"),
-  architect(diagnosis, "subsystem"),
-  architect(diagnosis, "first-principles"),
-]);
+# Run tests in watch mode
+pnpm run test:watch
 
-const challenged = await falsify(ideas);
-
-const candidates = challenged
-  .filter(x => x.worthExperimenting);
-
-const experiments =
-  await experimentInParallel(candidates);
-
-const survivors =
-  selectPromisingCandidates(experiments);
-
-const implementations = await Promise.all(
-  survivors.map(candidate =>
-    implementInIsolatedWorktree(candidate)
-  )
-);
-
-const verified =
-  await verifyIndependently(implementations);
-
-const winner =
-  await evidenceBasedSelection(verified);
-
-await integrate(winner);
-
-const review =
-  await cleanRoomReview(winner);
-
-if (!review.blockingIssues.length) {
-  await github.publishPullRequest(winner);
-} else {
-  await repair(review);
-}
+# Run TypeScript typecheck
+pnpm run lint
 ```
 
-本質はこれです。
+Test coverage includes:
+- Behavior Tree composite and decorator execution contracts.
+- DeepController FSM phase transitions and structured backtracking.
+- Parallel Git worktree creation, isolation, and safe rollback.
+- Context compactor distillation without evidence loss.
+- Verification promotion ladder state transitions.
+- Pareto frontier calculation and anti-minimal-diff objective scoring.
+- Metamorphic invariant validation and test integrity verification.
 
 ---
 
-# 19. さらに一段強くするなら「Architecture Debt Detector」
+## License
 
-通常タスクとは別に、
-
-```text
-今回の要求を実装する際、
-要求そのものとは無関係だが
-将来的な開発速度を著しく落としている構造を発見したか？
-```
-
-を記録します。
-
-例えば、
-
-```json
-{
-  "architecturalSignals": [
-    {
-      "location": "src/control/...",
-      "issue": "duplicate ownership of state",
-      "severity": 0.83,
-      "evidence": ["...", "..."],
-      "recommendedExperiment": "..."
-    }
-  ]
-}
-```
-
-一定値を超えたら別branchを作り、
-
-```text
-agent/architecture/<topic>
-```
-
-で自主的に実験。
-
-ただし元タスクのPRとは分離します。
-
-これで、
-
-> 今の依頼だけを終わらせて次へ
-
-というagentから、
-
-> コードベースそのものを継続的に改善するagent
-
-になります。
-
----
-
-# 20. キリのいい段階でのコンテキスト圧縮（Context Compaction & Distillation）
-
-長時間探索や複数回のリトライ（Self-Healing Loop）を行うと、コンテキスト（対話履歴や共有ステート）が肥大化し、**注意の希釈（Attention Dilution）** や **過去の失敗したコードへの引きずられ（Anchoring）** が発生します。
-
-本ハーネスでは `ContextCompactor` により、**「キリのいい段階」** で決定論的にコンテキストを圧縮・蒸留します。
-
-```text
-       [Clean-Room Review Reject / Test Fail]
-                         │
-                         ▼
-        ┌─────────────────────────────────┐
-        │       ContextCompactor          │
-        │   - 失敗したWorktree/実装をパージ   │
-        │   - 不変条件違反・教訓のみを蒸留    │
-        │   - SQLite FTS5へ永続化退避     │
-        └────────────────┬────────────────┘
-                         │
-                         ▼ (Distilled High-Signal Context)
-                [Diagnose (Retry)]
-```
-
-### 1. 圧縮のトリガーポイント
-1. **自己修復リトライのバックトラック時（Backtrack Boundary）**:
-   Reviewリジェクトやテスト全滅で再試行する際、過去の全コード差分やスタックトレースを破棄し、「何がダメだったのか（制約・不変条件）」だけを抽出してリセット。
-2. **フェーズ遷移境界（Phase Boundary）**:
-   ResearchやReviewのチャット詳細ログを捨て、スキーマ化された要約アーティファクトのみを次のフェーズへ引き継ぐ（Ephemeral Worker Pattern）。
-
-### 2. 残すもの vs 捨てるもの
-* **残すもの（State / Invariants）**: ゴール、破られた不変条件（Negative Constraints）、確定したADR/スキル、客観的テスト数値。
-* **捨てるもの（Transient Noise）**: 試行錯誤の途中チャットログ、スタックトレース全文、却下された候補の中間コード。
-
----
-
-## 最終的に目指すべき基準アーキテクチャ（完全実装済み）
-
-本リポジトリでは、エキスパートレビューと実証検証に基づき、単なる「最小変更に逃げるスクリプト」を排し、仮説探索・反証・機械的検証・ブラインド査読を行う**自律型ソフトウェア工学ハーネス（Autonomous Software Engineering Harness）**の完成形を実装しました。
-
-```text
-Goal
-  │
-  ▼
-Repo Inspect (Topology / AST / Git History / Invariants)
-  │
-  ▼
-Problem Signature Generation (Anti-Memory Anchoring)
-  │
-  ▼
-Memory / Skill Retrieval (Signature-targeted FTS5)
-  │
-  ▼
-Fast / Deep Triage ─────────────────────────┐
-  │ FAST                                     │ DEEP
-  ▼                                          ▼
-FastImplement (Single Local Worktree)      Research Router (network=true, webSearch=live)
-  │                                          │
-  ▼                                          ▼
-Independent Verify                         Diagnose (L0〜L7 Intervention Ladder)
-  │                                          │
-  ▼                                          ▼
-  │                                       Diversity Gate (Guarantees orthogonal hypotheses)
-  │                                          │
-  ▼                                          ▼
-  │                                       Falsification (Counter-argument scrutiny & survivors)
-  │                                          │
-  ▼                                          ▼
-  │                                       Parallel Worktrees (Isolated Git Worktrees A / B / C)
-  │                                          │
-  ▼                                          ▼
-  │                                       Test & Oracle Integrity Gate (Anti-cheating / Protected)
-  │                                          │
-  ▼                                          ▼
-  │                                       Machine Verification (Process Exit Code, Regressions)
-  │                                          │
-  ▼                                          ▼
-  │                                       Per-candidate Hard Gate (Zero tolerance filter)
-  │                                          │
-  ▼                                          ▼
-  │                                       Pareto / Lexicographic Sort (Correctness > Perf > Simplicity)
-  │                                          │
-  ▼                                          ▼
-  │                                       Candidate Queue [C1, C2, ..., Cn]
-  │                                          │
-  ▼                                          ▼
-  └───────────────────────────────→ Clean-Room Review (sandboxMode: "read-only", offline)
-                                     │
-                                     ├── REJECT → Next candidate in queue available?
-                                     │             ├── YES → Review next candidate immediately
-                                     │             └── NO  → All candidates exhausted
-                                     │                         │
-                                     │                         ▼
-                                     │                   Backtrack Router (Structured FailureClass)
-                                     │                   ├── IMPLEMENTATION_ERROR → Implement
-                                     │                   ├── FALSIFICATION_GAP    → Falsify
-                                     │                   ├── ROOT_CAUSE_ERROR     → Diagnose
-                                     │                   ├── EXTERNAL_SPEC        → Research
-                                     │                   └── REPO_MODEL_ERROR     → Inspect
-                                     │
-                                     └── APPROVED
-                                           │
-                                           ▼
-                                    Integration Verification (Merge branch to active workspace)
-                                           │
-                                           ▼
-                                    Publish (GitHub Broker Pull Request)
-                                           │
-                                           ▼
-                                    Remote CI Outcome & Provenance Memory
-                                    ├── Record ADR (Architecture Decision Record)
-                                    ├── Crystallize Reusable Procedural Skills
-                                    ├── Persist Provenance Memory (MACHINE_VERIFIED, invalidation bounds)
-                                    └── Export Preference Trajectories (DPO-compatible with weights)
-```
-
-> **全体を保護・統制する3大インフラ:**
-> 1. **Budget Governor**: Iterations, Candidates, Test Runs, Tokens, Research, Review, Phase Backtracks, Wall-clock Timeout を多次元管理。
-> 2. **Execution Journal**: クラッシュ復旧・プロセス再開を保証する冪等なログ追跡（SQLite/JSONL）。
-> 3. **GitHub Broker**: 最小権限 GitHub App トークン仲介とブランチ保護。
-
-### 実装済みのコア機構（最新改修完了）
-1. **外側BT ＋ 内側FSM（DeepController）による直接バックトラッキング**:
-   BT（大局的戦略・フォールバック）とFSM（Deep探索内の精密な状態遷移）を分業。Backtrack Routerの診断（`IMPLEMENTATION_ERROR`, `FALSIFICATION_GAP`, `ROOT_CAUSE_ERROR`, `EXTERNAL_SPEC`, `REPO_MODEL_ERROR`）に基づき、中間フェーズをスキップして目的のフェーズへダイレクトにジャンプ。
-2. **Integration Staging ＆ Verified Commit SHA Invariant**:
-   PR作成前のコミット同一性を保証。`origin/main` 上でリベース・ステージングしたコミットSHAをロックし、Full Integration Verification をパスした同一コミットSHAのみをPRにpush（$\text{SHA}_{\text{verified}} \equiv \text{SHA}_{\text{PR}}$）。
-3. **Baseline-Relative Hard Gate ＆ Identity Delta**:
-   既存リポジトリの既知の失敗を許容しつつ新規リグレッションをゼロにする差分評価。型・リント検査は単なる件数比較ではなく、ハッシュ識別子による集合差分（Identity Delta: $\text{Cand} \setminus \text{Base} = \emptyset$）で偶発的バグ隠蔽を根絶。
-4. **AttemptContext ＆ 4層 Structured Evidence Store**:
-   Fast/Deep間の探索状態を `AttemptContext` で完全分離。失敗時は一時ワークツリー等をロールバックしつつ、証拠は `StructuredEvidenceStore`（Observation, Assertion, Inference, Decision）に不変保管。Compactorは事実を削除できずプロンプト用プロジェクションのみを提供。
-5. **Tier 3 Metamorphic / Invariant Oracle**:
-   LLM同士の「仕様の共同誤読」を防ぐため、具体的期待値に依存しない代数的不変関係（冪等性 $f(f(x))=f(x)$、ラウンドトリップ、可換性、状態不変量）を検証。
-6. **Idempotent Reconciliation Loop**:
-   外部APIやネットワーク瞬断に対して、一過性の操作ではなく「目標状態（Desired State）への収束」を行う宣言的Reconciliationモデルを採用。
-7. **Adaptive Exploration（Cheap Falsification First MAB）**:
-   情報利得 / 推定検証コスト比率に基づき、安価で高速な反証から優先的に実行する Multi-Armed Bandit 型スケジューリングにより、破綻した仮説を早期枝刈り（Early Pruning）。
-8. **実証的キャリブレーション付き DPO Confidence Weight**:
-   出所（Provenance）、Tier 3 不変条件充足、レビュアー直交性、マージ後安定性（Temporal Stability）を統合した連続値信頼度関数により、LLM自己模倣崩壊（Echo Chamber）を防止。
-
-
-[1]: https://github.com/openai/codex/blob/main/sdk/typescript/README.md?utm_source=chatgpt.com "codex/sdk/typescript/README.md at main · openai/codex · GitHub"
-[2]: https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra?utm_source=chatgpt.com "Rethinking skills and prompts for GPT-6 Astra | OpenAI Developers"
-[3]: https://developers.openai.com/ja-JP/docs/config-file/config-reference?utm_source=chatgpt.com "構成リファレンス | ChatGPT Learn"
-[4]: https://developers.openai.com/blog/run-long-horizon-tasks-with-codex?utm_source=chatgpt.com "Run long horizon tasks with Codex | OpenAI Developers"
-[5]: https://developers.openai.com/ja-JP/blog/codex-as-a-platform?utm_source=chatgpt.com "プラットフォームとしての Codex：オープンなエージェントハーネスを使った開発 | OpenAI Developers"
-[6]: https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app?utm_source=chatgpt.com "Choosing permissions for a GitHub App - GitHub Docs"
-[7]: https://github.com/openai/codex-action?utm_source=chatgpt.com "GitHub - openai/codex-action · GitHub"
+This project is licensed under the **Apache-2.0 License**. See [LICENSE](LICENSE) for details.
