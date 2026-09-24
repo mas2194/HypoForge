@@ -1375,6 +1375,7 @@ export function renderWebUI(): string {
         card.dataset.phase = phaseEvent.phase;
         subagentListEl.prepend(card);
       }
+      card.dataset.status = phaseEvent.status === "started" ? "running" : phaseEvent.status;
       card.replaceChildren();
       const title = document.createElement("div");
       title.className = "phase-summary-title";
@@ -1433,7 +1434,8 @@ export function renderWebUI(): string {
         if (visible) visibleCount++;
       }
       for (const card of subagentListEl.querySelectorAll(".phase-summary-card")) {
-        const visible = activityMatchesPhase(card.dataset.phase || "");
+        const matchesStatus = state.agentFilter === "all" || state.agentFilter === card.dataset.status;
+        const visible = matchesStatus && activityMatchesPhase(card.dataset.phase || "");
         card.style.display = visible ? "block" : "none";
         if (visible) visibleCount++;
       }
