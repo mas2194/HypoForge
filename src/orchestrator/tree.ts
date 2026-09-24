@@ -1,7 +1,6 @@
 import {
   sequence,
   selector,
-  retry,
   guard,
   optional,
   action,
@@ -12,70 +11,35 @@ import type { HarnessContext } from "./context.js";
 import {
   inspectAction,
   triageAction,
-  researchAction,
-  diagnoseAction,
-  diversityGateAction,
-  falsifyAction,
   fastImplementAction,
-  implementAction,
   verifyAction,
   compareAction,
   cleanRoomReviewAction,
-  captureRejectionFeedbackAction,
-  compactContextAction,
-  integrateAction,
+  stageIntegrationAction,
   publishAction,
   learnAction,
 } from "./actions.js";
+import { deepControllerAction } from "./deep-controller.js";
 
 export interface TreeOptions {
   maxExplorationAttempts?: number;
   enableTracing?: boolean;
 }
 
+/**
+ * Builds the Hierarchical Autonomous Exploration Behavior Tree.
+ * Macro Strategy (BT): Inspect -> Triage -> Selector(FastTrack, DeepController) -> StageIntegration -> Publish -> Learn.
+ * Micro Exploration (FSM): DeepController manages arbitrary state transitions and direct backtracking jumps.
+ */
 export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessContext> {
-  const maxAttempts = options?.maxExplorationAttempts ?? 2;
   const enableTracing = options?.enableTracing ?? true;
 
   const wrap = <T extends BTNode<HarnessContext>>(node: T): BTNode<HarnessContext> => {
     return enableTracing ? trace(node) : node;
   };
 
-  // Deep Subtree: Diagnose -> DiversityGate -> Falsify -> Implement -> Verify -> Compare -> Review Gate
-  // NOTE: DiversityGate strictly precedes Falsification. Survivors of counter-arguments are respected.
-  const exploreAndValidateSubtree = sequence("Explore, Implement & Validate", [
-    wrap(action("Diagnose", diagnoseAction)),
-    wrap(action("DiversityGate", diversityGateAction)),
-    wrap(action("Falsify", falsifyAction)),
-    wrap(action("Implement", implementAction)),
-    wrap(action("Verify", verifyAction)),
-    wrap(action("Compare", compareAction)),
-    wrap(
-      selector("Review Gate & Backtrack", [
-        wrap(action("CleanRoomReview", cleanRoomReviewAction)),
-        wrap(action("CaptureRejectionFeedback", captureRejectionFeedbackAction)),
-      ])
-    ),
-  ]);
-
-  // Self-Healing Retry Decorator with Context Compaction and Backtrack Routing
-  const selfHealingLoop = retry(
-    maxAttempts,
-    "Self-Healing Exploration Loop",
-    exploreAndValidateSubtree,
-    (attempt, ctx) => {
-      ctx.iteration = attempt + 1;
-      const target = ctx.backtrackDecision?.target ?? "Diagnose";
-      // Compact and distill blackboard context upon backtracking
-      ctx.compactor.compactForBacktrack(ctx);
-      console.log(
-        `\n[BT:Self-Healing] === Backtracking to ${target} for Iteration ${ctx.iteration}/${maxAttempts} (Context Compacted) ===`
-      );
-    }
-  );
-
   // Fast Track Subtree: Direct Implement -> Verify -> Compare -> Review
-  // If fast path fails at any point, Selector falls back to Deep Pipeline.
+  // If fast path fails at any point, Selector falls back cleanly to DeepController.
   const fastTrackSubtree = sequence("FastTrack Execution", [
     wrap(
       guard(
@@ -89,10 +53,9 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
     wrap(action("CleanRoomReview", cleanRoomReviewAction)),
   ]);
 
-  const deepPipelineSubtree = sequence("Deep Exploration Pipeline", [
-    wrap(action("Research", researchAction)),
-    wrap(selfHealingLoop),
-  ]);
+  // Deep Exploration Subtree: Managed entirely by DeepController FSM
+  // Replaces rigid BT retry loops with direct, cause-driven phase transitions.
+  const deepPipelineNode = wrap(action("DeepController", deepControllerAction));
 
   // Root Pipeline Sequence
   return wrap(
@@ -102,10 +65,10 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
       wrap(
         selector("Fast / Deep Execution Path", [
           wrap(fastTrackSubtree),
-          wrap(deepPipelineSubtree),
+          wrap(deepPipelineNode),
         ])
       ),
-      wrap(action("Integrate", integrateAction)),
+      wrap(action("StageIntegration", stageIntegrationAction)),
       wrap(
         optional(
           "Publish PR",
@@ -122,4 +85,3 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
     ])
   );
 }
-

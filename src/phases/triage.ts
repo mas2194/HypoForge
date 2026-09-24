@@ -8,6 +8,7 @@ export interface TriageDecision {
   reason: string;
   confidence: number;
   signals: string[];
+  requiresResearch: boolean;
 }
 
 const FAST_PATH_PATTERNS = [
@@ -61,6 +62,7 @@ export function triageExecutionPath(
       reason: `Requires deep exploration due to: ${signals.join("; ")}`,
       confidence: 0.95,
       signals,
+      requiresResearch: researchDecision.shouldResearch,
     };
   }
 
@@ -80,6 +82,7 @@ export function triageExecutionPath(
       reason: "Routine, localized task with zero architectural risk or concurrency hazards",
       confidence: 0.98,
       signals: ["Localized syntax / typo / null-check"],
+      requiresResearch: false,
     };
   }
 
@@ -89,5 +92,6 @@ export function triageExecutionPath(
     reason: "Standard task requiring hypothesis formulation and falsification",
     confidence: 0.8,
     signals: ["Standard task"],
+    requiresResearch: researchDecision.shouldResearch,
   };
 }

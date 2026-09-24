@@ -20,6 +20,19 @@ export interface RunBaselineOptions {
   testCommand?: string;
 }
 
+function extractFailingTestIds(output: string): string[] {
+  const ids: string[] = [];
+  const lines = output.split("\n");
+  for (const line of lines) {
+    // Matches patterns like "FAIL tests/foo.test.ts > test_name" or "✕ should do something"
+    const vitestMatch = line.match(/(?:FAIL|✕)\s+([^\n\r]+)/i);
+    if (vitestMatch && vitestMatch[1]) {
+      ids.push(vitestMatch[1].trim());
+    }
+  }
+  return ids;
+}
+
 export class Evaluator {
   /**
    * Evaluates Candidate 0 (Baseline on main branch).
@@ -47,6 +60,7 @@ export class Evaluator {
       regressions.push(`Baseline test command failed: ${testCommand}`);
     }
 
+    const failingTestIds = extractFailingTestIds(testOutput);
     const testsPassed = failed === 0 && passed > 0;
     const hardGates = {
       testsPassed,
@@ -78,6 +92,18 @@ export class Evaluator {
         failed,
         output: testOutput,
         exitCode,
+        failingTestIds,
+        passingTestIds: passed > 0 ? ["baseline-suite-passed"] : [],
+      },
+      diagnostics: {
+        typeErrors: [],
+        lintErrors: [],
+      },
+      metamorphic: {
+        tested: false,
+        passed: true,
+        properties: {},
+        failureReasons: [],
       },
       complexity: {
         addedLines: 0,
@@ -200,6 +226,8 @@ export class Evaluator {
       score = -100 * failed;
     }
 
+    const failingTestIds = extractFailingTestIds(testOutput);
+
     return VerificationResultSchema.parse({
       candidateId,
       isBaseline: false,
@@ -210,6 +238,18 @@ export class Evaluator {
         failed,
         output: testOutput,
         exitCode,
+        failingTestIds,
+        passingTestIds: passed > 0 ? [`${candidateId}-tests-passed`] : [],
+      },
+      diagnostics: {
+        typeErrors: [],
+        lintErrors: [],
+      },
+      metamorphic: {
+        tested: false,
+        passed: true,
+        properties: {},
+        failureReasons: [],
       },
       benchmark: benchmarkBefore && benchmarkAfter ? {
         before: benchmarkBefore,

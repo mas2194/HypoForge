@@ -58,10 +58,48 @@ export class GitHubBroker {
   }
 
   /**
-   * Creates a Pull Request through the governed broker.
+   * Searches for existing open Pull Request for head/base pair (Idempotent Reconciliation).
    */
-  async createPullRequest(params: CreatePullRequestParams): Promise<{ url: string; number: number }> {
+  async findExistingPullRequest(head: string, base: string): Promise<{ url: string; number: number; headSha?: string } | null> {
+    if (this.dryRun || !this.octokit || !this.owner || !this.repo) {
+      return null;
+    }
+
+    try {
+      const res = await this.octokit.pulls.list({
+        owner: this.owner,
+        repo: this.repo,
+        head: `${this.owner}:${head}`,
+        base,
+        state: "open",
+      });
+      if (res.data.length > 0) {
+        const pr = res.data[0];
+        return {
+          url: pr.html_url,
+          number: pr.number,
+          headSha: pr.head.sha,
+        };
+      }
+    } catch {
+      // Non-fatal search failure
+    }
+    return null;
+  }
+
+  /**
+   * Creates a Pull Request through the governed broker.
+   * Performs idempotent reconciliation before creating a duplicate PR.
+   */
+  async createPullRequest(params: CreatePullRequestParams): Promise<{ url: string; number: number; headSha?: string }> {
     this.validateBranchTarget(params.head);
+
+    // 1. Reconciliation: Check if PR already exists
+    const existing = await this.findExistingPullRequest(params.head, params.base);
+    if (existing) {
+      console.log(`[GitHub Broker] Reconciled with existing PR #${existing.number}: ${existing.url}`);
+      return existing;
+    }
 
     if (this.dryRun || !this.octokit || !this.owner || !this.repo) {
       console.log(`[GitHub Broker (Dry Run)] Created Pull Request for ${params.head} -> ${params.base}`);
@@ -84,6 +122,7 @@ export class GitHubBroker {
     return {
       url: res.data.html_url,
       number: res.data.number,
+      headSha: res.data.head.sha,
     };
   }
 }

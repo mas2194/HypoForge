@@ -24,6 +24,26 @@ export const SoftMetricsSchema = z.object({
 
 export type SoftMetrics = z.infer<typeof SoftMetricsSchema>;
 
+export const DiagnosticItemSchema = z.object({
+  filePath: z.string(),
+  line: z.number().optional(),
+  column: z.number().optional(),
+  code: z.string(),
+  message: z.string(),
+  identityHash: z.string(),
+});
+
+export type DiagnosticItem = z.infer<typeof DiagnosticItemSchema>;
+
+export const MetamorphicResultSchema = z.object({
+  tested: z.boolean().default(false),
+  passed: z.boolean().default(true),
+  properties: z.record(z.string(), z.boolean()).default({}),
+  failureReasons: z.array(z.string()).default([]),
+});
+
+export type MetamorphicResult = z.infer<typeof MetamorphicResultSchema>;
+
 export const VerificationResultSchema = z.object({
   candidateId: z.string(),
   isBaseline: z.boolean().default(false),
@@ -50,6 +70,20 @@ export const VerificationResultSchema = z.object({
     failed: z.number(),
     output: z.string(),
     exitCode: z.number().default(0),
+    failingTestIds: z.array(z.string()).default([]),
+    passingTestIds: z.array(z.string()).default([]),
+  }),
+  diagnostics: z
+    .object({
+      typeErrors: z.array(DiagnosticItemSchema).default([]),
+      lintErrors: z.array(DiagnosticItemSchema).default([]),
+    })
+    .default({ typeErrors: [], lintErrors: [] }),
+  metamorphic: MetamorphicResultSchema.default({
+    tested: false,
+    passed: true,
+    properties: {},
+    failureReasons: [],
   }),
   benchmark: z
     .object({

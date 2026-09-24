@@ -1207,23 +1207,23 @@ Independent Verify                         Diagnose (L0〜L7 Intervention Ladder
 > 2. **Execution Journal**: クラッシュ復旧・プロセス再開を保証する冪等なログ追跡（SQLite/JSONL）。
 > 3. **GitHub Broker**: 最小権限 GitHub App トークン仲介とブランチ保護。
 
-### 実装済みのコア機構（8大刷新）
-1. **Diversity Gate の位置是正（反証前に配置）**:
-   多様な説明（L1〜L6、異なる探索戦略）を反証**前**に保証。反証後に生き残った候補（Survivors）がL1のみであれば健全な科学的収束として尊重し、無理な再生成を行わない。
-2. **Intervention Level を目的関数から排除（最大介入バイアスの防止）**:
-   Intervention Levelは「どこまで疑ったか」のメタデータタグに留め、辞書式順序では `Correctness (Hard Gate)` $\succ$ `Performance Improvement` $\succ$ `Simplicity (少ない変更行数 / 低churn)` を採用。同じ効果なら30行のL1パッチが800行のL6書き換えに勝つ（オッカムの剃刀）。
-3. **Test & Oracle Integrity Gate（チート防止）**:
-   Agentが `it.skip`、eslint 無効化、CI step削除、assertion 弱体化でテストを誤魔化す行為を機械的に検出。baseline の test/config を protected oracle として保護。
-4. **Clean-Room Reviewer の完全 Read-Only 化**:
-   Reviewer のスレッドに `sandboxMode: "read-only"` を強制。コード修正権限を剥奪し、純粋なブラインド監査（Anonymous Candidate X）に専念させる。
-5. **Structured Backtrack Classification**:
-   Reviewer の出力に `FailureClass`（`IMPLEMENTATION_ERROR`, `FALSIFICATION_GAP`, `ROOT_CAUSE_ERROR`, `EXTERNAL_SPEC`, `REPO_MODEL_ERROR`）を義務付け、正規表現に依存しない決定論的ロールバックを実現。
-6. **Fast Path / Deep Path の動的トリアージ**:
-   Problem Signature とトポロジーから不確実性を評価。typoやnull check等の局所タスクは即座に Fast Track（Implement $\rightarrow$ Verify $\rightarrow$ Review）で高速実行し、失敗時に自動昇格（Escalate）。
-7. **Execution Journal & Crash Recovery**:
-   長時間処理でのプロセス停止・クラッシュに備え、フェーズ開始・完了・失敗、スレッドID、予算状態を永続化。未完了フェーズからの安全な再開を保証。
-8. **Memory Provenance & Stale Invalidation**:
-   記憶に `MACHINE_VERIFIED`, `REVIEW_VERIFIED`, `CI_VERIFIED`, `HUMAN_APPROVED` 等の出所（Provenance）を付与。さらに `valid_for_repo_sha`, `valid_for_dependency_version`, `expires_at`, `superseded_by` を持たせ、古い事実の永久固定化を防ぐ。
+### 実装済みのコア機構（最新改修完了）
+1. **外側BT ＋ 内側FSM（DeepController）による直接バックトラッキング**:
+   BT（大局的戦略・フォールバック）とFSM（Deep探索内の精密な状態遷移）を分業。Backtrack Routerの診断（`IMPLEMENTATION_ERROR`, `FALSIFICATION_GAP`, `ROOT_CAUSE_ERROR`, `EXTERNAL_SPEC`, `REPO_MODEL_ERROR`）に基づき、中間フェーズをスキップして目的のフェーズへダイレクトにジャンプ。
+2. **Integration Staging ＆ Verified Commit SHA Invariant**:
+   PR作成前のコミット同一性を保証。`origin/main` 上でリベース・ステージングしたコミットSHAをロックし、Full Integration Verification をパスした同一コミットSHAのみをPRにpush（$\text{SHA}_{\text{verified}} \equiv \text{SHA}_{\text{PR}}$）。
+3. **Baseline-Relative Hard Gate ＆ Identity Delta**:
+   既存リポジトリの既知の失敗を許容しつつ新規リグレッションをゼロにする差分評価。型・リント検査は単なる件数比較ではなく、ハッシュ識別子による集合差分（Identity Delta: $\text{Cand} \setminus \text{Base} = \emptyset$）で偶発的バグ隠蔽を根絶。
+4. **AttemptContext ＆ 4層 Structured Evidence Store**:
+   Fast/Deep間の探索状態を `AttemptContext` で完全分離。失敗時は一時ワークツリー等をロールバックしつつ、証拠は `StructuredEvidenceStore`（Observation, Assertion, Inference, Decision）に不変保管。Compactorは事実を削除できずプロンプト用プロジェクションのみを提供。
+5. **Tier 3 Metamorphic / Invariant Oracle**:
+   LLM同士の「仕様の共同誤読」を防ぐため、具体的期待値に依存しない代数的不変関係（冪等性 $f(f(x))=f(x)$、ラウンドトリップ、可換性、状態不変量）を検証。
+6. **Idempotent Reconciliation Loop**:
+   外部APIやネットワーク瞬断に対して、一過性の操作ではなく「目標状態（Desired State）への収束」を行う宣言的Reconciliationモデルを採用。
+7. **Adaptive Exploration（Cheap Falsification First MAB）**:
+   情報利得 / 推定検証コスト比率に基づき、安価で高速な反証から優先的に実行する Multi-Armed Bandit 型スケジューリングにより、破綻した仮説を早期枝刈り（Early Pruning）。
+8. **実証的キャリブレーション付き DPO Confidence Weight**:
+   出所（Provenance）、Tier 3 不変条件充足、レビュアー直交性、マージ後安定性（Temporal Stability）を統合した連続値信頼度関数により、LLM自己模倣崩壊（Echo Chamber）を防止。
 
 
 [1]: https://github.com/openai/codex/blob/main/sdk/typescript/README.md?utm_source=chatgpt.com "codex/sdk/typescript/README.md at main · openai/codex · GitHub"

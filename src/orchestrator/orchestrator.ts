@@ -8,7 +8,8 @@ import { CodexClientManager } from "../codex/client.js";
 import { ContextCompactor } from "./compactor.js";
 import { buildHarnessBehaviorTree } from "./tree.js";
 import type { BTNode, NodeStatus } from "../bt/types.js";
-import { Phase, type HarnessContext } from "./context.js";
+import { Phase, type HarnessContext, type AttemptContext } from "./context.js";
+import { StructuredEvidenceStore } from "./evidence-store.js";
 
 import { BudgetTracker, type BudgetLimits } from "../budget/tracker.js";
 
@@ -57,12 +58,32 @@ export class HarnessOrchestrator {
 
     const budgetTracker = new BudgetTracker(options.budgetLimits);
 
+    const evidenceStore = new StructuredEvidenceStore();
+    const initialAttempt: AttemptContext = {
+      id: `attempt-1-fast`,
+      type: "FAST",
+      iteration: 1,
+      worktreePaths: [],
+      implementations: [],
+      verifications: [],
+      candidateQueue: [],
+      rejectedCandidates: [],
+      rollbackTransientState: async () => {
+        try {
+          await worktreeManager.cleanAllWorktrees();
+        } catch (err) {
+          console.warn("Warning rolling back worktrees:", err);
+        }
+      },
+    };
+
     this.context = {
       goal: options.goal,
       runId,
       repoRoot: worktreeManager.repoRoot,
       testCommand: options.testCommand,
       publishPr: options.publishPr ?? false,
+      targetMode: options.publishPr ? "PR" : "LOCAL",
       phase: Phase.Inspect,
       finished: false,
       worktreeManager,
@@ -75,6 +96,10 @@ export class HarnessOrchestrator {
       compactor: new ContextCompactor(),
       budgetTracker,
       executionJournal: new ExecutionJournal(options.repoRoot ? `${options.repoRoot}/.agent/journal` : undefined),
+      evidenceStore,
+      currentAttempt: initialAttempt,
+      attempts: [initialAttempt],
+      maxIterations: options.maxExplorationAttempts ?? 3,
       recalledMemories: [],
 
       activeSkills: [],

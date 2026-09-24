@@ -81,8 +81,17 @@ Respond strictly with a valid JSON array matching this schema:
     }
   }
 
+  // Multi-Armed Bandit scheduling: Prioritize candidates with higher information-gain to cost ratio (Cheap first)
+  const sortedCandidates = [...options.candidates].sort((a, b) => {
+    const costA = a.level === "local" ? 1 : a.level === "subsystem" ? 3 : 8;
+    const costB = b.level === "local" ? 1 : b.level === "subsystem" ? 3 : 8;
+    const priorityA = (a.confidence ?? 0.7) / costA;
+    const priorityB = (b.confidence ?? 0.7) / costB;
+    return priorityB - priorityA;
+  });
+
   // Deterministic evaluation fallback
-  const reviews: FalsifiedCandidate[] = options.candidates.map((cand) => ({
+  const reviews: FalsifiedCandidate[] = sortedCandidates.map((cand) => ({
     id: cand.id,
     criticism: `Falsification analysis for ${cand.level} candidate: verified potential risks and constraints.`,
     identifiedRisks: [
@@ -93,5 +102,5 @@ Respond strictly with a valid JSON array matching this schema:
     worthExperimenting: true,
   }));
 
-  return { candidates: options.candidates, reviews };
+  return { candidates: sortedCandidates, reviews };
 }

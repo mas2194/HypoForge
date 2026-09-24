@@ -54,6 +54,7 @@ export const CandidateHypothesisSchema = z.object({
   falsificationTest: z.string().optional(),
   predictedEffect: z.string().optional(),
   strategy: z.string().optional(), // e.g. "local_patch", "structural_redesign", "alternative_architecture"
+  confidence: z.number().default(0.7).optional(),
   experiment: z.string(),
   worthExperimenting: z.boolean().default(true),
 });

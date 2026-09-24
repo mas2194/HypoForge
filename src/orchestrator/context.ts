@@ -52,6 +52,23 @@ import type { BacktrackDecision } from "./backtrack-router.js";
 import type { BudgetTracker } from "../budget/tracker.js";
 import type { RepoInspection, ProblemSignature } from "../phases/inspect-repo.js";
 import type { VerifiedMemoryRecord } from "../memory/verified-memory.js";
+import { StructuredEvidenceStore } from "./evidence-store.js";
+
+export type AttemptType = "FAST" | "DEEP";
+
+export interface AttemptContext {
+  id: string;
+  type: AttemptType;
+  iteration: number;
+  worktreePaths: string[];
+  implementations: CandidateImplementation[];
+  verifications: VerificationResult[];
+  candidateQueue: QueuedCandidate[];
+  rejectedCandidates: RejectedCandidateRecord[];
+  winner?: QueuedCandidate;
+  review?: ReviewResult;
+  rollbackTransientState: () => Promise<void>;
+}
 
 export interface HarnessContext {
   // Goal & Execution Identity
@@ -60,6 +77,7 @@ export interface HarnessContext {
   repoRoot: string;
   testCommand?: string;
   publishPr: boolean;
+  targetMode?: "PR" | "LOCAL";
   phase: Phase;
   finished: boolean;
   unresolved?: boolean;
@@ -77,6 +95,15 @@ export interface HarnessContext {
   compactor: ContextCompactor;
   budgetTracker: BudgetTracker;
   executionJournal: ExecutionJournal;
+  evidenceStore: StructuredEvidenceStore;
+
+  // Transactional Exploration Attempts
+  currentAttempt: AttemptContext;
+  attempts: AttemptContext[];
+  maxIterations?: number;
+
+  // Invariant: Locked and fully verified Git SHA to be pushed to PR / applied
+  verifiedCommitSha?: string;
 
   // Hermes-style Dynamic Memories & Skills
   repoInspection?: RepoInspection;
@@ -115,3 +142,4 @@ export interface HarnessContext {
   compactionRecords: CompactionRecord[];
   traceLog: NodeExecutionRecord[];
 }
+

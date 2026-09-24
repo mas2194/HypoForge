@@ -1,7 +1,42 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { RunTrajectory, PreferencePair, CandidateTrajectoryRecord } from "./types.js";
+import type { RunTrajectory, PreferencePair, CandidateTrajectoryRecord, TrajectoryProvenance } from "./types.js";
 import type { HarnessContext } from "../orchestrator/context.js";
+
+/**
+ * Computes calibrated DPO confidence weight based on empirical evidence strength.
+ * Avoids model echo-chamber / self-reinforcement collapse by strictly weighting evidence.
+ */
+export function computeDPOConfidenceWeight(params: {
+  provenance: TrajectoryProvenance;
+  tier3MetamorphicPassed?: boolean;
+  scoreDelta?: number;
+  stableDays?: number;
+}): number {
+  const baseMap: Record<TrajectoryProvenance, number> = {
+    self_reviewed: 0.15,
+    machine_verified: 0.35,
+    ci_verified: 0.65,
+    human_approved: 0.85,
+    post_merge_success: 1.0,
+  };
+
+  let weight = baseMap[params.provenance] ?? 0.35;
+
+  if (params.tier3MetamorphicPassed) {
+    weight += 0.10;
+  }
+
+  if (params.scoreDelta && params.scoreDelta > 30) {
+    weight += 0.05;
+  }
+
+  if (params.stableDays && params.stableDays >= 7) {
+    weight += 0.10;
+  }
+
+  return Math.min(Math.max(weight, 0.05), 1.0);
+}
 
 export class TrajectoryExporter {
   readonly repoRoot: string;
@@ -51,10 +86,18 @@ export class TrajectoryExporter {
 
       for (const cand of candidates) {
         if (cand.candidateId !== winner.implementation.candidateId) {
+          const scoreDelta = winner.verification.score - cand.verificationScore;
+          const tier3Passed = winner.verification.metamorphic?.passed ?? true;
+          const confidenceWeight = computeDPOConfidenceWeight({
+            provenance: "machine_verified",
+            tier3MetamorphicPassed: tier3Passed,
+            scoreDelta,
+          });
+
           preferencePairs.push({
             prompt: ctx.goal,
             provenance: "machine_verified",
-            confidenceWeight: 1.0,
+            confidenceWeight,
             chosen: {
               candidateId: winner.implementation.candidateId,
               level: winner.implementation.level,
@@ -89,7 +132,6 @@ export class TrajectoryExporter {
       winnerCandidateId: ctx.winner?.implementation.candidateId,
       preferencePairs,
     };
-
   }
 
   async exportRunTrajectory(ctx: HarnessContext): Promise<string> {

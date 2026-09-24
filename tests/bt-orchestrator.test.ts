@@ -55,7 +55,7 @@ describe("HarnessOrchestrator (Behavior Tree)", () => {
     expect(executedNodeNames).toContain("Verify");
     expect(executedNodeNames).toContain("Compare");
     expect(executedNodeNames).toContain("CleanRoomReview");
-    expect(executedNodeNames).toContain("Integrate");
+    expect(executedNodeNames.some((n) => n === "Integrate" || n === "StageIntegration")).toBe(true);
     expect(executedNodeNames).toContain("Publish");
     expect(executedNodeNames).toContain("Learn");
 

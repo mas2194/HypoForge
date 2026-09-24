@@ -143,6 +143,10 @@ export class WorktreeManager {
     }
   }
 
+  async revParse(ref: string = "HEAD", cwd?: string): Promise<string> {
+    return this.git(["rev-parse", ref], cwd);
+  }
+
   /**
    * Cleans up all worktrees inside the worktrees directory.
    */

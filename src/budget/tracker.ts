@@ -105,6 +105,10 @@ export class BudgetTracker {
     return { ...this.limits };
   }
 
+  isExhausted(): boolean {
+    return this.checkBudget().exhausted;
+  }
+
   checkBudget(): BudgetStatus {
     const usage = this.getUsage();
 

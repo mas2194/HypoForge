@@ -41,15 +41,28 @@ export class ContextCompactor {
     const purgedItems: string[] = [];
     const timestamp = new Date().toISOString();
 
-    // 1. Purge transient implementation and verification artifacts from prior attempt
+    // 1. Preserve immutable observations in StructuredEvidenceStore before resetting transient attempt state
+    if (ctx.verifications && ctx.verifications.length > 0) {
+      for (const ver of ctx.verifications) {
+        ctx.evidenceStore?.addObservation({
+          source: `verification:${ver.candidateId}`,
+          content: `Test exitCode=${ver.tests.exitCode}, passed=${ver.tests.passed}, failed=${ver.tests.failed}, lines=+${ver.softMetrics?.addedLines}/-${ver.softMetrics?.deletedLines}`,
+          iteration: ctx.iteration,
+          data: {
+            candidateId: ver.candidateId,
+            tests: ver.tests,
+            regressions: ver.regressions,
+            hardGates: ver.hardGates,
+          },
+        });
+      }
+      purgedItems.push(`verifications (${ctx.verifications.length} items persisted to evidence store)`);
+      ctx.verifications = [];
+    }
+
     if (ctx.implementations && ctx.implementations.length > 0) {
       purgedItems.push(`implementations (${ctx.implementations.length} items)`);
       ctx.implementations = [];
-    }
-
-    if (ctx.verifications && ctx.verifications.length > 0) {
-      purgedItems.push(`verifications (${ctx.verifications.length} items)`);
-      ctx.verifications = [];
     }
 
     if (ctx.winner) {
@@ -58,7 +71,16 @@ export class ContextCompactor {
     }
 
     if (ctx.falsifiedCandidates && ctx.falsifiedCandidates.length > 0) {
-      purgedItems.push(`falsifiedCandidates (${ctx.falsifiedCandidates.length} items)`);
+      for (const fc of ctx.falsifiedCandidates) {
+        ctx.evidenceStore?.addInference({
+          source: `falsifier:${fc.id}`,
+          content: `Hypothesis: ${fc.hypothesis}`,
+          iteration: ctx.iteration,
+          falsified: true,
+          confidence: fc.confidence,
+        });
+      }
+      purgedItems.push(`falsifiedCandidates (${ctx.falsifiedCandidates.length} items persisted to evidence store)`);
       ctx.falsifiedCandidates = undefined;
     }
 
@@ -80,6 +102,14 @@ export class ContextCompactor {
           violatedInvariant: cleaned.violatedInvariant,
         });
         distilledCount++;
+
+        if (cleaned.violatedInvariant) {
+          ctx.evidenceStore?.addAssertion({
+            source: cleaned.source,
+            content: `Violated Invariant: ${cleaned.violatedInvariant}`,
+            iteration: ctx.iteration,
+          });
+        }
 
         // Persist distilled lesson into SQLite FTS5 for cross-run durability
         try {
