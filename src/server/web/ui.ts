@@ -545,6 +545,8 @@ export function renderWebUI(): string {
       opacity: 1;
     }
 
+    .stage-node.selected { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+
     .stage-icon {
       width: 28px;
       height: 28px;
@@ -1034,7 +1036,7 @@ export function renderWebUI(): string {
       </div>
 
       <div class="explore-flow" id="explore-flow" aria-label="Explore phase flow">
-        <div class="explore-flow-title">Explore Flow · select a step to jump to its activity</div>
+        <div class="explore-flow-title">EXPLORE FLOW · SELECT A STEP TO JUMP TO ITS ACTIVITY</div>
         <div class="explore-flow-steps" id="explore-flow-steps"></div>
       </div>
 
@@ -1210,6 +1212,7 @@ export function renderWebUI(): string {
       state.phaseEvents.set(phase, phaseEvent);
       renderExploreFlow();
       renderPhaseSummary(phaseEvent);
+      renderActivityVisibility();
       currentPhaseDisplayEl.textContent = "Phase: " + phase + (phaseEvent.path ? " (" + phaseEvent.path + ")" : "");
 
       // Highlight stage nodes in graph
@@ -1287,6 +1290,7 @@ export function renderWebUI(): string {
       updateAgentCard(agent, agentEvent);
       updateAgentBadgeCounts();
       renderExploreFlow();
+      renderActivityVisibility();
     }
 
     function createAgentCard(agent) {
@@ -1368,6 +1372,7 @@ export function renderWebUI(): string {
         card = document.createElement("section");
         card.id = id;
         card.className = "phase-summary-card";
+        card.dataset.phase = phaseEvent.phase;
         subagentListEl.prepend(card);
       }
       card.replaceChildren();
@@ -1409,25 +1414,49 @@ export function renderWebUI(): string {
       state.agentFilter = filter;
       document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
+      renderActivityVisibility();
+    }
 
+    function activityMatchesPhase(phase) {
+      if (!state.phaseFilter) return true;
+      if (state.phaseFilter === "Explore") return explorePhases.includes(phase);
+      return state.phaseFilter === phase;
+    }
+
+    function renderActivityVisibility() {
+      let visibleCount = 0;
       for (const agent of state.subAgents.values()) {
         if (!agent.el) continue;
-        if (filter === "all" || agent.status === filter) {
-          agent.el.style.display = "block";
-        } else {
-          agent.el.style.display = "none";
-        }
+        const matchesStatus = state.agentFilter === "all" || agent.status === state.agentFilter;
+        const visible = matchesStatus && activityMatchesPhase(agent.phase);
+        agent.el.style.display = visible ? "block" : "none";
+        if (visible) visibleCount++;
+      }
+      for (const card of subagentListEl.querySelectorAll(".phase-summary-card")) {
+        const visible = activityMatchesPhase(card.dataset.phase || "");
+        card.style.display = visible ? "block" : "none";
+        if (visible) visibleCount++;
+      }
+      emptyAgentStateEl.style.display = visibleCount ? "none" : "flex";
+      if (!visibleCount) {
+        const message = state.phaseFilter
+          ? "No activity recorded for " + state.phaseFilter + " yet."
+          : "No sub-agents active yet.";
+        emptyAgentStateEl.querySelector("div:nth-child(2)").textContent = message;
       }
     }
 
     function filterByPhase(phase) {
+      state.phaseFilter = phase;
+      document.querySelectorAll(".stage-node").forEach((node) => node.classList.toggle("selected", node.id === "node-" + phase));
       if (phase === "Explore") {
-        exploreFlowEl.classList.toggle("visible");
+        exploreFlowEl.classList.add("visible");
         renderExploreFlow();
-        return;
+      } else {
+        exploreFlowEl.classList.remove("visible");
       }
-      exploreFlowEl.classList.remove("visible");
-      const target = document.getElementById("phase-summary-" + phase) || [...state.subAgents.values()].find((agent) => agent.phase === phase)?.el;
+      renderActivityVisibility();
+      const target = document.getElementById("phase-summary-" + phase) || [...state.subAgents.values()].find((agent) => activityMatchesPhase(agent.phase))?.el;
       target?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
