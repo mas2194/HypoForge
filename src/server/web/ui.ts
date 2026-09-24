@@ -879,7 +879,7 @@ export function renderWebUI(): string {
   <header>
     <div class="brand">
       <div class="brand-logo">H</div>
-      <span>my_harness</span>
+      <span>HypoForge</span>
       <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">| Autonomous Architecture Explorer</span>
     </div>
 
