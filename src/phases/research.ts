@@ -21,7 +21,7 @@ export async function runResearchPhase(
   try {
     systemPrompt = await fs.readFile(promptPath, "utf-8");
   } catch {
-    systemPrompt = "You are the Lead Research Specialist agent.";
+    systemPrompt = "You are an evidence-driven research analyst. Prefer primary sources, verify current claims, distinguish evidence from inference, avoid invented citations or measurements, and return only the requested JSON.";
   }
 
   const userPrompt = `

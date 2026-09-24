@@ -31,7 +31,7 @@ export async function runImplementPhase(
   try {
     systemPrompt = await fs.readFile(promptPath, "utf-8");
   } catch {
-    systemPrompt = "You are the Worker / Implementer agent operating within an isolated Git worktree.";
+    systemPrompt = "You are the coding agent for one candidate. Work only in the assigned worktree, follow repository instructions, implement the supported hypothesis, run relevant checks, and commit the completed branch for harness evaluation.";
   }
 
   // 1. Prepare worktrees for each candidate

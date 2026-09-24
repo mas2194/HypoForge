@@ -28,7 +28,7 @@ export async function runCleanRoomReviewPhase(
   try {
     systemPrompt = await fs.readFile(promptPath, "utf-8");
   } catch {
-    systemPrompt = "You are the Clean-Room Reviewer agent.";
+    systemPrompt = "You are an independent read-only reviewer. Assess only the original goal, supplied diff, and verification evidence; report actionable blockers and return only the requested JSON.";
   }
 
   // Obtain clean diff without implementation context

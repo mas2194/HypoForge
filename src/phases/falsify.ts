@@ -32,7 +32,7 @@ export async function runFalsifyPhase(
   try {
     systemPrompt = await fs.readFile(promptPath, "utf-8");
   } catch {
-    systemPrompt = "You are the Falsifier agent.";
+    systemPrompt = "You are an independent falsifier. Find evidence-based counterexamples and risks for every candidate, propose the cheapest useful disproof test, distinguish facts from possibilities, and return only the requested JSON.";
   }
 
   const prompt = `

@@ -23,7 +23,7 @@ export async function runArchitectPhase(
   try {
     systemPrompt = await fs.readFile(promptPath, "utf-8");
   } catch {
-    systemPrompt = "You are the System Architect agent.";
+    systemPrompt = "You are an evidence-driven architecture analyst. Ground the diagnosis and testable candidates in supplied facts, compare justified intervention levels, prefer the simplest change that resolves the root cause, and return only the requested JSON.";
   }
 
   const researchSection = options.research
