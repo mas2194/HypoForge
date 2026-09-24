@@ -377,9 +377,26 @@ npx tsx src/main.ts
 # Directly pass an objective
 npx tsx src/main.ts "Migrate storage layer to SQLite and eliminate duplicate state"
 
+# Directly specify model and reasoning effort via CLI flags
+npx tsx src/main.ts --model gpt-6-sol --effort high "Refactor network layer"
+
 # Or after building
 node dist/main.js
 ```
+
+#### Interactive Slash Commands
+
+Similar to Codex CLI, `my_harness` supports dynamic interactive slash commands in the interactive prompt:
+
+- **`/model`** or **`/model <name|number>`**:
+  - Without arguments: Lists all available Codex models (auto-loaded from `~/.codex/models_cache.json`), supported reasoning effort levels, and interactive selection.
+  - With argument: Switches the active model dynamically (e.g. `/model gpt-6-sol` or `/model 2`).
+- **`/effort`** or **`/effort <level|number>`**:
+  - Without arguments: Lists all reasoning effort levels (`minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`, `persistent`) and their descriptions.
+  - With argument: Switches reasoning effort level dynamically (e.g. `/effort high` or `/effort 4`).
+- **`/status`**: Displays current active model, effort, test command, and execution settings.
+- **`/help`**: Lists available commands and prompt navigation instructions.
+- **`/exit`**, **`/quit`**, **`/q`** (or `exit`, `quit`, `q`): Exit the harness session.
 
 During execution, `my_harness` will:
 1. Inspect the repository AST, topology, and invariant contracts.

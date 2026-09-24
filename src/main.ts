@@ -2,7 +2,17 @@ import "dotenv/config";
 import * as readline from "node:readline";
 import * as readlinePromises from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import type { ModelReasoningEffort } from "@openai/codex-sdk";
 import { HarnessStateMachine } from "./orchestrator/state-machine.js";
+import {
+  resolveDefaultModel,
+  resolveDefaultEffort,
+  loadCachedModels,
+} from "./codex/config.js";
+import {
+  executeSlashCommand,
+  type SlashCommandContext,
+} from "./codex/commands.js";
 
 async function promptUserInstruction(promptText: string): Promise<string> {
   if (!process.stdin.isTTY) {
@@ -108,8 +118,14 @@ async function promptUserInstruction(promptText: string): Promise<string> {
   });
 }
 
-async function runHarness(goal: string) {
-  console.log(`\nTarget Goal: "${goal}"\n`);
+export interface RunHarnessOptions {
+  model: string;
+  effort: ModelReasoningEffort;
+}
+
+export async function runHarness(goal: string, options: RunHarnessOptions) {
+  console.log(`\nTarget Goal: "${goal}"`);
+  console.log(`Active Model: ${options.model} | Reasoning Effort: ${options.effort}\n`);
 
   // Support USE_CODEX=false to explicitly disable. Default to true (supporting ChatGPT OAuth and API keys).
   const useCodex =
@@ -120,7 +136,8 @@ async function runHarness(goal: string) {
   const harness = new HarnessStateMachine({
     goal,
     useCodex,
-    codexModel: process.env.CODEX_MODEL || process.env.OPENAI_MODEL,
+    codexModel: options.model,
+    codexModelReasoningEffort: options.effort,
     testCommand: process.env.HARNESS_TEST_COMMAND || "npm test",
   });
 
@@ -137,20 +154,84 @@ async function runHarness(goal: string) {
   }
 }
 
+/**
+ * Parses CLI arguments for flags (--model, -m, --effort, -e) and extracts the remaining goal.
+ */
+export function parseCliArgs(args: string[]): {
+  model?: string;
+  effort?: ModelReasoningEffort;
+  goal?: string;
+} {
+  let model: string | undefined;
+  let effort: ModelReasoningEffort | undefined;
+  const remaining: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--model" || arg === "-m") {
+      if (i + 1 < args.length) {
+        model = args[++i];
+      }
+    } else if (arg === "--effort" || arg === "-e") {
+      if (i + 1 < args.length) {
+        effort = args[++i] as ModelReasoningEffort;
+      }
+    } else {
+      remaining.push(arg);
+    }
+  }
+
+  const goal = remaining.join(" ").trim();
+  return { model, effort, goal: goal || undefined };
+}
+
 async function main() {
   console.log("=== Autonomous Agent Harness Starting ===");
-  console.log("Mode: Evidence-based Architecture Exploration (MVP)\n");
+  console.log("Mode: Evidence-based Architecture Exploration (MVP)");
 
-  const cliArgGoal = process.argv.slice(2).join(" ").trim();
-  if (cliArgGoal) {
-    await runHarness(cliArgGoal);
+  const cliParsed = parseCliArgs(process.argv.slice(2));
+
+  let currentModel = resolveDefaultModel(cliParsed.model);
+  let currentEffort = resolveDefaultEffort(cliParsed.effort);
+  const availableModels = loadCachedModels();
+
+  const getSlashContext = (): SlashCommandContext => ({
+    currentModel,
+    currentEffort,
+    availableModels,
+    setModel: (m: string) => {
+      currentModel = m;
+    },
+    setEffort: (e: ModelReasoningEffort) => {
+      currentEffort = e;
+    },
+    testCommand: process.env.HARNESS_TEST_COMMAND || "npm test",
+    useCodex:
+      process.env.USE_CODEX !== undefined
+        ? process.env.USE_CODEX !== "false" && process.env.USE_CODEX !== "0"
+        : true,
+  });
+
+  // If a goal or command was passed via CLI argument
+  if (cliParsed.goal) {
+    if (cliParsed.goal.startsWith("/")) {
+      const res = executeSlashCommand(cliParsed.goal, getSlashContext());
+      if (res.output) {
+        console.log(res.output);
+      }
+      return;
+    }
+    await runHarness(cliParsed.goal, { model: currentModel, effort: currentEffort });
     return;
   }
+
+  console.log(`Active Model: ${currentModel} | Reasoning Effort: ${currentEffort}`);
+  console.log("Tip: Use /model or /effort to configure, /help for all commands\n");
 
   // Interactive mode: wait for user instruction with multi-line support
   while (true) {
     const answer = await promptUserInstruction(
-      "Enter goal (Enter: newline | Ctrl+Enter or Ctrl+D: submit | 'exit': quit):\n> "
+      "Enter goal or command (Enter: newline | Ctrl+Enter or Ctrl+D: submit | '/exit': quit | '/help': commands):\n> "
     );
     const trimmed = answer.trim();
 
@@ -158,17 +239,52 @@ async function main() {
       continue;
     }
 
-    if (
-      trimmed.toLowerCase() === "exit" ||
-      trimmed.toLowerCase() === "quit" ||
-      trimmed.toLowerCase() === "q"
-    ) {
-      console.log("Exiting harness. Goodbye!");
-      break;
+    const slashContext = getSlashContext();
+    const commandResult = executeSlashCommand(trimmed, slashContext);
+
+    if (commandResult.handled) {
+      if (commandResult.output) {
+        console.log("\n" + commandResult.output + "\n");
+      }
+
+      if (commandResult.action === "quit") {
+        break;
+      }
+
+      // Handle interactive selection if bare /model was invoked
+      if (commandResult.action === "interactive_model") {
+        const choice = await promptUserInstruction(
+          "Select model by number or name (press Enter to cancel):\n> "
+        );
+        const choiceTrimmed = choice.trim();
+        if (choiceTrimmed) {
+          const subRes = executeSlashCommand(`/model ${choiceTrimmed}`, slashContext);
+          if (subRes.output) {
+            console.log("\n" + subRes.output + "\n");
+          }
+        }
+      }
+
+      // Handle interactive selection if bare /effort was invoked
+      if (commandResult.action === "interactive_effort") {
+        const choice = await promptUserInstruction(
+          "Select reasoning effort by number or level (press Enter to cancel):\n> "
+        );
+        const choiceTrimmed = choice.trim();
+        if (choiceTrimmed) {
+          const subRes = executeSlashCommand(`/effort ${choiceTrimmed}`, slashContext);
+          if (subRes.output) {
+            console.log("\n" + subRes.output + "\n");
+          }
+        }
+      }
+
+      console.log("-".repeat(50) + "\n");
+      continue;
     }
 
     try {
-      await runHarness(trimmed);
+      await runHarness(trimmed, { model: currentModel, effort: currentEffort });
     } catch (err) {
       console.error("Error during execution:", err);
     }
@@ -177,7 +293,15 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("Fatal error:", err);
-  process.exit(1);
-});
+// Only invoke main when run directly as CLI entrypoint
+const isDirectRun =
+  import.meta.url === `file://${process.argv[1]}` ||
+  process.argv[1]?.endsWith("src/main.ts") ||
+  process.argv[1]?.endsWith("dist/main.js");
+
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error("Fatal error:", err);
+    process.exit(1);
+  });
+}

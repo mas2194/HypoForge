@@ -8,13 +8,20 @@ import {
   type Thread,
 } from "@openai/codex-sdk";
 import { Agent } from "@openai/agents";
+import {
+  resolveDefaultModel,
+  resolveDefaultEffort,
+  type CodexModelInfo,
+  loadCachedModels,
+} from "./config.js";
 
-export type { SandboxMode, ApprovalMode };
+export type { SandboxMode, ApprovalMode, ModelReasoningEffort, WebSearchMode };
 
 export interface CodexClientOptions {
   defaultSandboxMode?: SandboxMode;
   defaultApprovalPolicy?: ApprovalMode;
   defaultModel?: string;
+  defaultModelReasoningEffort?: ModelReasoningEffort;
 }
 
 export interface WorkerOptions {
@@ -31,7 +38,8 @@ export class CodexClientManager {
   private codex: Codex;
   public readonly defaultSandboxMode: SandboxMode;
   public readonly defaultApprovalPolicy: ApprovalMode;
-  public readonly defaultModel: string;
+  public defaultModel: string;
+  public defaultModelReasoningEffort: ModelReasoningEffort;
 
   constructor(options: CodexClientOptions = {}) {
     this.codex = new Codex();
@@ -43,11 +51,22 @@ export class CodexClientManager {
       options.defaultApprovalPolicy ??
       (process.env.CODEX_APPROVAL_POLICY as ApprovalMode) ??
       "never";
-    this.defaultModel =
-      options.defaultModel ??
-      process.env.CODEX_MODEL ??
-      process.env.OPENAI_MODEL ??
-      "gpt-6-luna";
+    this.defaultModel = resolveDefaultModel(options.defaultModel);
+    this.defaultModelReasoningEffort = resolveDefaultEffort(options.defaultModelReasoningEffort);
+  }
+
+  /**
+   * Dynamically switch active model for subsequent threads.
+   */
+  setModel(model: string): void {
+    this.defaultModel = model.trim();
+  }
+
+  /**
+   * Dynamically switch active reasoning effort for subsequent threads.
+   */
+  setReasoningEffort(effort: ModelReasoningEffort): void {
+    this.defaultModelReasoningEffort = effort;
   }
 
   /**
@@ -61,6 +80,7 @@ export class CodexClientManager {
       webSearchMode: options.webSearchMode ?? "live",
       webSearchEnabled: options.networkAccessEnabled ?? true,
       model: options.model ?? this.defaultModel,
+      modelReasoningEffort: options.modelReasoningEffort ?? this.defaultModelReasoningEffort,
     };
 
     return this.codex.startThread(threadOpts);

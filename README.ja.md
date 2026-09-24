@@ -379,9 +379,26 @@ npx tsx src/main.ts
 # 直接目標（ゴール）を指定して実行
 npx tsx src/main.ts "Migrate storage layer to SQLite and eliminate duplicate state"
 
+# モデルや推論Effortを直接指定して実行
+npx tsx src/main.ts --model gpt-6-sol --effort high "Refactor network layer"
+
 # またはビルド後の実行
 node dist/main.js
 ```
+
+#### 対話型スラッシュコマンド（Codex CLI準拠）
+
+対話プロンプト内で Codex CLI と同様のスラッシュコマンドが利用可能です：
+
+- **`/model`** または **`/model <name|番号>`**:
+  - 引数なし：利用可能な Codex モデル一覧（`~/.codex/models_cache.json` から自動ロード）とサポートされる推論Effortを表示し、対話的に選択。
+  - 引数指定：アクティブなモデルを動的に切り替え（例: `/model gpt-6-sol` や `/model 2`）。
+- **`/effort`** または **`/effort <level|番号>`**:
+  - 引数なし：利用可能な推論Effort一覧（`minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`, `persistent`）とその説明を表示。
+  - 引数指定：推論Effortを動的に切り替え（例: `/effort high` や `/effort 4`）。
+- **`/status`**：現在のアクティブモデル、Effort、テストコマンドなどの設定状況を表示。
+- **`/help`**：利用可能なコマンド一覧と操作方法を表示。
+- **`/exit`**, **`/quit`**, **`/q`**（または `exit`, `quit`, `q`）：セッションを終了。
 
 実行中、`my_harness` は以下のフローを自律的に進行します：
 1. 対象コードベースの AST、依存関係トポロジー、不変条件を自動解析。
