@@ -319,7 +319,7 @@ MERGED (マージ完了: 1.0)
 - **Node.js**: `v20.0.0` 以上
 - **パッケージマネージャー**: `pnpm`（推奨, `v10.5.2`+）または `npm`
 - **Git**: パスが通っており利用可能な状態
-- **OpenAI API Key**: 推論モデル（`gpt-4o` や `codex`）へのアクセス権
+- **OpenAI 認証**: `codex login` による ChatGPT アカウントの OAuth ログイン、または `OPENAI_API_KEY`
 
 ### インストール
 
@@ -348,9 +348,11 @@ cp .env.example .env
 `.env` の内容を編集します：
 
 ```env
-# LLM / OpenAI API 設定
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-4o
+# LLM / Codex 設定
+# `codex login` 済み（ChatGPT OAuth）の場合は OPENAI_API_KEY の設定は不要です
+USE_CODEX=true
+# OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-6-luna
 
 # 任意: 自動プルリクエスト作成を行う場合のGitHub App設定
 GITHUB_APP_ID=

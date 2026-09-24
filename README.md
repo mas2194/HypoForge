@@ -317,8 +317,7 @@ Execution trajectories are automatically recorded and exported in Direct Prefere
 
 - **Node.js**: `v20.0.0` or higher
 - **Package Manager**: `pnpm` (recommended, `v10.5.2`+) or `npm`
-- **Git**: Installed and configured on your path
-- **OpenAI API Key**: With access to modern reasoning models (e.g. `gpt-4o`, `codex`)
+- **OpenAI Authentication**: Either ChatGPT OAuth via `codex login`, or `OPENAI_API_KEY`
 
 ### Installation
 
@@ -347,9 +346,11 @@ cp .env.example .env
 Edit `.env`:
 
 ```env
-# LLM / OpenAI API Configuration
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-4o
+# LLM / Codex Configuration
+# When logged in via `codex login` (ChatGPT OAuth), OPENAI_API_KEY is not required.
+USE_CODEX=true
+# OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-6-luna
 
 # Optional: GitHub App Integration for automated PR publication
 GITHUB_APP_ID=

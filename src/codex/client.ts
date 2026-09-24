@@ -14,6 +14,7 @@ export type { SandboxMode, ApprovalMode };
 export interface CodexClientOptions {
   defaultSandboxMode?: SandboxMode;
   defaultApprovalPolicy?: ApprovalMode;
+  defaultModel?: string;
 }
 
 export interface WorkerOptions {
@@ -23,12 +24,14 @@ export interface WorkerOptions {
   modelReasoningEffort?: ModelReasoningEffort;
   networkAccessEnabled?: boolean;
   webSearchMode?: WebSearchMode;
+  model?: string;
 }
 
 export class CodexClientManager {
   private codex: Codex;
   public readonly defaultSandboxMode: SandboxMode;
   public readonly defaultApprovalPolicy: ApprovalMode;
+  public readonly defaultModel: string;
 
   constructor(options: CodexClientOptions = {}) {
     this.codex = new Codex();
@@ -40,6 +43,11 @@ export class CodexClientManager {
       options.defaultApprovalPolicy ??
       (process.env.CODEX_APPROVAL_POLICY as ApprovalMode) ??
       "never";
+    this.defaultModel =
+      options.defaultModel ??
+      process.env.CODEX_MODEL ??
+      process.env.OPENAI_MODEL ??
+      "gpt-6-luna";
   }
 
   /**
@@ -52,6 +60,7 @@ export class CodexClientManager {
       approvalPolicy: options.approvalPolicy ?? this.defaultApprovalPolicy,
       webSearchMode: options.webSearchMode ?? "live",
       webSearchEnabled: options.networkAccessEnabled ?? true,
+      model: options.model ?? this.defaultModel,
     };
 
     return this.codex.startThread(threadOpts);

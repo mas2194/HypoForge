@@ -23,6 +23,7 @@ export interface OrchestratorOptions {
   useCodex?: boolean;
   codexSandboxMode?: SandboxMode;
   codexApprovalPolicy?: ApprovalMode;
+  codexModel?: string;
   publishPr?: boolean;
   maxExplorationAttempts?: number;
   budgetLimits?: Partial<BudgetLimits>;
@@ -58,6 +59,7 @@ export class HarnessOrchestrator {
         codexManager = new CodexClientManager({
           defaultSandboxMode: options.codexSandboxMode,
           defaultApprovalPolicy: options.codexApprovalPolicy,
+          defaultModel: options.codexModel,
         });
       } catch (err) {
         console.warn("Could not initialize CodexClientManager:", err);

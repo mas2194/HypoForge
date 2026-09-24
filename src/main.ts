@@ -8,9 +8,16 @@ async function main() {
   const goal = process.argv.slice(2).join(" ") || "Refactor and optimize system module";
   console.log(`Target Goal: "${goal}"\n`);
 
+  // Support USE_CODEX=false to explicitly disable. Default to true (supporting ChatGPT OAuth and API keys).
+  const useCodex =
+    process.env.USE_CODEX !== undefined
+      ? process.env.USE_CODEX !== "false" && process.env.USE_CODEX !== "0"
+      : true;
+
   const harness = new HarnessStateMachine({
     goal,
-    useCodex: Boolean(process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY),
+    useCodex,
+    codexModel: process.env.CODEX_MODEL || process.env.OPENAI_MODEL,
     testCommand: process.env.HARNESS_TEST_COMMAND || "npm test",
   });
 
