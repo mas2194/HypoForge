@@ -159,6 +159,7 @@ export function renderWebUI(): string {
       display: flex;
       flex-direction: column;
       height: 100%;
+      min-height: 0;
       position: relative;
     }
 
@@ -176,7 +177,9 @@ export function renderWebUI(): string {
 
     .chat-messages {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
+      overscroll-behavior-y: contain;
       padding: 16px;
       display: flex;
       flex-direction: column;
@@ -1291,6 +1294,15 @@ export function renderWebUI(): string {
 
       agent.status = agentEvent.status || agent.status;
       if (agentEvent.message || agentEvent.details) agent.events.push({ ...agentEvent });
+
+      if (agentEvent.type === "finish" && agentEvent.details && Object.keys(agentEvent.details).length) {
+        appendChatMessage({
+          id: "agent-response-" + agentEvent.agentId + "-" + agentEvent.timestamp,
+          role: "assistant",
+          text: "### " + (agentEvent.name || "Agent") + " response\\n\\n" + jsonToMarkdown(agentEvent.details),
+          timestamp: agentEvent.timestamp,
+        });
+      }
 
       updateAgentCard(agent, agentEvent);
       updateAgentBadgeCounts();
