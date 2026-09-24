@@ -1355,14 +1355,13 @@ export function renderWebUI(): string {
         if (event.message) {
           const content = document.createElement("div");
           content.className = "agent-activity-content markdown-content";
-          content.innerHTML = formatMarkdown(event.message);
+          content.innerHTML = formatMarkdown(agentTextToMarkdown(event.message));
           section.appendChild(content);
         }
         if (event.details && Object.keys(event.details).length) {
           const content = document.createElement("div");
           content.className = "agent-activity-content markdown-content";
-          const fence = String.fromCharCode(96).repeat(3);
-          content.innerHTML = formatMarkdown(fence + "json\\n" + JSON.stringify(event.details, null, 2) + "\\n" + fence);
+          content.innerHTML = formatMarkdown(jsonToMarkdown(event.details));
           section.appendChild(content);
         }
         body.appendChild(section);
@@ -1803,6 +1802,48 @@ export function renderWebUI(): string {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+    }
+
+    function agentTextToMarkdown(text) {
+      const trimmed = String(text || "").trim();
+      const fencedJson = trimmed.match(/^```(?:json)?\\s*([\\s\\S]*?)\\s*```$/i);
+      const candidate = fencedJson ? fencedJson[1].trim() : trimmed;
+      try {
+        return jsonToMarkdown(JSON.parse(candidate));
+      } catch {
+        return String(text || "");
+      }
+    }
+
+    function jsonToMarkdown(value, depth = 0) {
+      if (value === null) return "_null_";
+      if (Array.isArray(value)) {
+        if (!value.length) return "_No items._";
+        return value.map((item) => {
+          if (item && typeof item === "object") {
+            return jsonToMarkdown(item, depth);
+          }
+          return "- " + jsonScalarToMarkdown(item);
+        }).join("\\n\\n");
+      }
+      if (typeof value === "object") {
+        const entries = Object.entries(value);
+        if (!entries.length) return "_No details._";
+        const heading = "#".repeat(Math.min(depth + 2, 6));
+        return entries.map(([key, nested]) => {
+          const label = key
+            .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+            .replace(/[_-]+/g, " ")
+            .replace(/\\b\\w/g, (letter) => letter.toUpperCase());
+          return heading + " " + label + "\\n\\n" + jsonToMarkdown(nested, depth + 1);
+        }).join("\\n\\n");
+      }
+      return jsonScalarToMarkdown(value);
+    }
+
+    function jsonScalarToMarkdown(value) {
+      if (typeof value === "string") return value || "_Empty_";
+      return "`" + String(value) + "`";
     }
 
     function formatMarkdown(text) {
