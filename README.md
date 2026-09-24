@@ -433,7 +433,7 @@ Open `http://localhost:3000` in your browser for a split-screen dashboard:
   - Dynamic model and reasoning effort switcher in the top bar.
 - **Right Pane (Harness Stage Graph & Codex Sub-Agent Activity)**:
   - **Harness Stage Pipeline Graph**: Real-time visualization of pipeline stages (`Inspect` → `Triage` → `Explore` → `Integrate` → `Publish` → `Learn`) with live status indicators and interactive phase filtering.
-  - **Codex Sub-Agent Activity Panel**: Compact selectable rows for sub-agents. Select a row to open its Markdown-rendered thoughts, tool activity, generated output, metrics, and logs. Selecting `Explore` reveals its ordered phase flow (`Research` through `Review`), with each phase opening its own details.
+  - **Codex Sub-Agent Activity Panel**: Sub-agent thoughts, tool activity, generated output, and logs render inline as they arrive, alongside phase summaries. Selecting `Explore` reveals its ordered phase flow (`Research` through `Review`); phase steps jump to their activity in the panel.
 
 During execution, `my_harness` will:
 1. Inspect the repository AST, topology, and invariant contracts.

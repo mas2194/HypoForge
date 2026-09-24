@@ -435,7 +435,7 @@ npx tsx src/main.ts --server --port 8080 --model o3-mini --effort high
   - ヘッダーからアクティブモデルや推論Effortを動的に切り替え可能。
 - **右側ペイン（Harness Stage Graph & Codex Sub-Agent Activity）**:
   - **ハーネス各段階のグラフ（Pipeline Stage Graph）**: `Inspect` → `Triage` → `Explore`（`FAST` または `DEEP`）→ `Integrate` → `Publish` → `Learn` の進行状況をリアルタイムに表示。ノードをクリックすると、その項目の詳細を開きます。`Explore` をクリックすると `Research` から `Review` までの段階別フローを表示し、各段階をクリックすると詳細を確認できます。
-  - **Codex風サブエージェント出力（Sub-Agent Output Panel）**: エージェントを選択すると、思考ログ、ツール活動、生成内容、検証証拠、メトリクスをポップアップで確認できます。出力は Markdown として表示されます。
+  - **Codex風サブエージェント出力（Sub-Agent Output Panel）**: 思考ログ、ツール活動、生成内容、ログ、各段階の要約を Codex Sub-Agent Activity 内に随時インライン表示します。`Explore` を選ぶと `Research` から `Review` までの段階別フローが表示され、段階を選ぶとパネル内の該当箇所へ移動します。
 
 実行中、`my_harness` は以下のフローを自律的に進行します：
 1. 対象コードベースの AST、依存関係トポロジー、不変条件を自動解析。

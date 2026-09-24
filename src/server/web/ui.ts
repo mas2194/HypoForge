@@ -693,7 +693,7 @@ export function renderWebUI(): string {
 
     .explore-arrow { color: var(--text-muted); font-size: 11px; }
 
-    /* Sub-agent rows reveal their content only in the detail dialog. */
+    /* Sub-agent activity stays visible in the panel. */
     .agent-card {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
@@ -713,7 +713,6 @@ export function renderWebUI(): string {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      cursor: pointer;
       user-select: none;
     }
 
@@ -785,16 +784,6 @@ export function renderWebUI(): string {
       border: 1px solid rgba(248, 81, 73, 0.3);
     }
 
-    .toggle-arrow {
-      color: var(--text-muted);
-      font-size: 12px;
-      transition: transform 0.2s ease;
-    }
-
-    .agent-card.collapsed .toggle-arrow {
-      transform: rotate(-90deg);
-    }
-
     .agent-card-body {
       padding: 12px 14px;
       display: flex;
@@ -804,65 +793,14 @@ export function renderWebUI(): string {
       font-size: 12.5px;
     }
 
-    .agent-card.collapsed .agent-card-body {
-      display: none;
-    }
-
-    .agent-card-body { display: none; }
-
-    .agent-detail-dialog {
-      width: min(760px, calc(100vw - 32px));
-      max-width: 760px;
-      max-height: min(82vh, 900px);
-      padding: 0;
-      overflow: hidden;
-      color: var(--text-primary);
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
-    }
-
-    .agent-detail-dialog::backdrop { background: rgba(0, 0, 0, 0.66); }
-
-    .agent-detail-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 16px 18px;
-      border-bottom: 1px solid var(--border-color);
-      background: var(--bg-secondary);
-    }
-
-    .agent-detail-title { font-size: 15px; font-weight: 650; }
-    .agent-detail-subtitle { margin-top: 4px; color: var(--text-muted); font-size: 11px; }
-
-    .agent-detail-close {
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 4px 8px;
-      color: var(--text-secondary);
-      background: var(--bg-primary);
-      cursor: pointer;
-    }
-
-    .agent-detail-content {
-      max-height: calc(min(82vh, 900px) - 68px);
-      overflow: auto;
-      padding: 16px 18px;
-    }
-
-    .agent-detail-event { margin-bottom: 18px; }
-    .agent-detail-event:last-child { margin-bottom: 0; }
-    .agent-detail-event-title {
-      margin-bottom: 7px;
-      color: var(--text-muted);
-      font-size: 10px;
-      font-weight: 650;
-      letter-spacing: 0.45px;
-      text-transform: uppercase;
-    }
+    .agent-activity-event { padding-top: 8px; border-top: 1px solid var(--border-color); }
+    .agent-activity-event:first-child { padding-top: 0; border-top: 0; }
+    .agent-activity-title { margin-bottom: 4px; color: var(--text-muted); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+    .agent-activity-content { color: var(--text-secondary); line-height: 1.45; overflow-wrap: anywhere; }
+    .agent-activity-content > :first-child { margin-top: 0; }
+    .agent-activity-content > :last-child { margin-bottom: 0; }
+    .phase-summary-card { padding: 12px 14px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; }
+    .phase-summary-title { margin-bottom: 6px; color: var(--text-primary); font-size: 12px; font-weight: 600; }
 
     .markdown-content { font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
     .markdown-content h1, .markdown-content h2, .markdown-content h3 { margin: 14px 0 7px; line-height: 1.3; }
@@ -876,8 +814,6 @@ export function renderWebUI(): string {
     .markdown-content code { font-family: var(--font-mono); font-size: 0.92em; }
     .markdown-content :not(pre) > code { padding: 1px 4px; border-radius: 4px; background: var(--bg-tertiary); }
     .markdown-content a { color: var(--accent-blue); }
-    .agent-detail-empty { color: var(--text-muted); font-size: 12px; }
-
     .activity-row {
       display: flex;
       flex-direction: column;
@@ -1098,7 +1034,7 @@ export function renderWebUI(): string {
       </div>
 
       <div class="explore-flow" id="explore-flow" aria-label="Explore phase flow">
-        <div class="explore-flow-title">Explore Flow · select a step to inspect its agent output</div>
+        <div class="explore-flow-title">Explore Flow · select a step to jump to its activity</div>
         <div class="explore-flow-steps" id="explore-flow-steps"></div>
       </div>
 
@@ -1121,21 +1057,11 @@ export function renderWebUI(): string {
           <div class="empty-state" id="empty-agent-state">
             <div style="font-size: 24px;">🤖</div>
             <div>No sub-agents active yet.</div>
-            <div style="font-size: 11px;">Select an agent or Explore step to open its Markdown output.</div>
+            <div style="font-size: 11px;">Agent activity and phase summaries appear here as they arrive.</div>
           </div>
         </div>
       </div>
 
-      <dialog class="agent-detail-dialog" id="agent-detail-dialog" aria-labelledby="agent-detail-title">
-        <div class="agent-detail-header">
-          <div>
-            <div class="agent-detail-title" id="agent-detail-title"></div>
-            <div class="agent-detail-subtitle" id="agent-detail-subtitle"></div>
-          </div>
-          <button type="button" class="agent-detail-close" id="agent-detail-close" aria-label="Close">Close</button>
-        </div>
-        <div class="agent-detail-content" id="agent-detail-content"></div>
-      </dialog>
     </div>
   </div>
 
@@ -1173,10 +1099,6 @@ export function renderWebUI(): string {
     const autocompleteListEl = document.getElementById("autocomplete-list");
     const exploreFlowEl = document.getElementById("explore-flow");
     const exploreFlowStepsEl = document.getElementById("explore-flow-steps");
-    const agentDetailDialogEl = document.getElementById("agent-detail-dialog");
-    const agentDetailTitleEl = document.getElementById("agent-detail-title");
-    const agentDetailSubtitleEl = document.getElementById("agent-detail-subtitle");
-    const agentDetailContentEl = document.getElementById("agent-detail-content");
 
     // Initialize application
     async function init() {
@@ -1287,6 +1209,7 @@ export function renderWebUI(): string {
       state.currentPhase = phase;
       state.phaseEvents.set(phase, phaseEvent);
       renderExploreFlow();
+      renderPhaseSummary(phaseEvent);
       currentPhaseDisplayEl.textContent = "Phase: " + phase + (phaseEvent.path ? " (" + phaseEvent.path + ")" : "");
 
       // Highlight stage nodes in graph
@@ -1384,28 +1307,9 @@ export function renderWebUI(): string {
           '</div>' +
           '<div class="agent-meta">' +
             '<span class="badge running" id="badge-' + agent.id + '">RUNNING</span>' +
-            '<span class="toggle-arrow">↗</span>' +
           '</div>' +
         '</div>' +
-        '<div class="agent-card-body" id="body-' + agent.id + '">' +
-          '<div class="activity-row" id="section-logs-' + agent.id + '">' +
-            '<span class="activity-label">Operations & Reasoning</span>' +
-            '<div class="activity-content" id="content-logs-' + agent.id + '">Initializing agent...</div>' +
-          '</div>' +
-        '</div>';
-
-      const header = card.querySelector(".agent-card-header");
-      if (header) {
-        header.addEventListener("click", () => openAgentDetails(agent.id));
-        header.setAttribute("role", "button");
-        header.setAttribute("tabindex", "0");
-        header.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            openAgentDetails(agent.id);
-          }
-        });
-      }
+        '<div class="agent-card-body" id="body-' + agent.id + '"></div>';
 
       agent.el = card;
       subagentListEl.prepend(card);
@@ -1422,8 +1326,58 @@ export function renderWebUI(): string {
 
       agent.el.className = "agent-card " + (agent.status === "running" ? "running" : "");
 
-      const header = agent.el.querySelector(".agent-card-header");
-      if (header) header.setAttribute("aria-label", "Open Markdown output for " + agent.name);
+      const body = agent.el.querySelector(".agent-card-body");
+      if (!body) return;
+      body.replaceChildren();
+      if (!agent.events.length) {
+        const pending = document.createElement("div");
+        pending.className = "agent-activity-content";
+        pending.textContent = "Waiting for activity…";
+        body.appendChild(pending);
+        return;
+      }
+      for (const event of agent.events) {
+        const section = document.createElement("section");
+        section.className = "agent-activity-event";
+        const label = document.createElement("div");
+        label.className = "agent-activity-title";
+        label.textContent = ({ start: "Started", thought: "Agent thought", tool: "Tool activity", result: "Generated content", finish: "Final output", log: "Log" })[event.type] || event.type;
+        section.appendChild(label);
+        if (event.message) {
+          const content = document.createElement("div");
+          content.className = "agent-activity-content markdown-content";
+          content.innerHTML = formatMarkdown(event.message);
+          section.appendChild(content);
+        }
+        if (event.details && Object.keys(event.details).length) {
+          const content = document.createElement("div");
+          content.className = "agent-activity-content markdown-content";
+          const fence = String.fromCharCode(96).repeat(3);
+          content.innerHTML = formatMarkdown(fence + "json\\n" + JSON.stringify(event.details, null, 2) + "\\n" + fence);
+          section.appendChild(content);
+        }
+        body.appendChild(section);
+      }
+    }
+
+    function renderPhaseSummary(phaseEvent) {
+      if (!phaseEvent.summary) return;
+      const id = "phase-summary-" + phaseEvent.phase;
+      let card = document.getElementById(id);
+      if (!card) {
+        card = document.createElement("section");
+        card.id = id;
+        card.className = "phase-summary-card";
+        subagentListEl.prepend(card);
+      }
+      card.replaceChildren();
+      const title = document.createElement("div");
+      title.className = "phase-summary-title";
+      title.textContent = phaseEvent.phase.replace(/([a-z])([A-Z])/g, "$1 $2") + " · " + phaseEvent.status;
+      const summary = document.createElement("div");
+      summary.className = "agent-activity-content markdown-content";
+      summary.innerHTML = formatMarkdown(phaseEvent.summary);
+      card.append(title, summary);
     }
 
     function getAgentIcon(id, name) {
@@ -1473,7 +1427,8 @@ export function renderWebUI(): string {
         return;
       }
       exploreFlowEl.classList.remove("visible");
-      openPhaseDetails(phase);
+      const target = document.getElementById("phase-summary-" + phase) || [...state.subAgents.values()].find((agent) => agent.phase === phase)?.el;
+      target?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
     function renderExploreFlow() {
@@ -1490,8 +1445,12 @@ export function renderWebUI(): string {
         button.type = "button";
         button.className = "explore-step " + status;
         button.textContent = phase.replace(/([a-z])([A-Z])/g, "$1 $2");
-        button.title = "Open " + phase + " agent output";
-        button.addEventListener("click", () => openPhaseDetails(phase));
+        button.title = "Jump to " + phase + " activity";
+        button.addEventListener("click", () => {
+          const target = document.getElementById("phase-summary-" + phase) || [...state.subAgents.values()].find((agent) => agent.phase === phase)?.el;
+          target?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          target?.focus?.({ preventScroll: true });
+        });
         exploreFlowStepsEl.appendChild(button);
         if (index < explorePhases.length - 1) {
           const arrow = document.createElement("span");
@@ -1502,73 +1461,6 @@ export function renderWebUI(): string {
       });
     }
 
-    function openAgentDetails(agentId) {
-      const agent = state.subAgents.get(agentId);
-      if (!agent) return;
-      showAgentDetails(agent.name, agent.phase + " · " + agent.status, agent.events);
-    }
-
-    function openPhaseDetails(phase) {
-      const agents = [...state.subAgents.values()].filter((agent) => agent.phase === phase);
-      const phaseEvent = state.phaseEvents.get(phase);
-      const events = [];
-      if (phaseEvent?.summary) {
-        events.push({ type: "summary", name: phase, message: phaseEvent.summary, timestamp: phaseEvent.timestamp });
-      }
-      for (const agent of agents) {
-        for (const event of agent.events) {
-          events.push({ ...event, name: agent.name });
-        }
-      }
-      events.sort((left, right) => new Date(left.timestamp || 0) - new Date(right.timestamp || 0));
-      const status = phaseEvent?.status || (agents.some((agent) => agent.status === "running") ? "running" : agents[0]?.status || "pending");
-      showAgentDetails(phase.replace(/([a-z])([A-Z])/g, "$1 $2"), status + " · " + agents.length + " agent(s)", events);
-    }
-
-    function showAgentDetails(title, subtitle, events) {
-      agentDetailTitleEl.textContent = title;
-      agentDetailSubtitleEl.textContent = subtitle;
-      agentDetailContentEl.replaceChildren();
-      if (!events.length) {
-        const empty = document.createElement("div");
-        empty.className = "agent-detail-empty";
-        empty.textContent = "No agent output has been recorded for this item yet.";
-        agentDetailContentEl.appendChild(empty);
-      } else {
-        for (const event of events) {
-          const section = document.createElement("section");
-          section.className = "agent-detail-event";
-          const label = document.createElement("div");
-          label.className = "agent-detail-event-title";
-          const eventLabel = ({
-            start: "Started",
-            thought: "Agent thought",
-            tool: "Tool activity",
-            result: "Generated content",
-            finish: "Final output",
-            summary: "Phase summary",
-            log: "Log",
-          })[event.type] || event.type;
-          label.textContent = (event.name ? event.name + " · " : "") + eventLabel;
-          section.appendChild(label);
-          if (event.message) {
-            const markdown = document.createElement("div");
-            markdown.className = "markdown-content";
-            markdown.innerHTML = formatMarkdown(event.message);
-            section.appendChild(markdown);
-          }
-          if (event.details && Object.keys(event.details).length) {
-            const details = document.createElement("div");
-            details.className = "markdown-content";
-            const fence = String.fromCharCode(96).repeat(3);
-            details.innerHTML = formatMarkdown(fence + "json\\n" + JSON.stringify(event.details, null, 2) + "\\n" + fence);
-            section.appendChild(details);
-          }
-          agentDetailContentEl.appendChild(section);
-        }
-      }
-      if (!agentDetailDialogEl.open) agentDetailDialogEl.showModal();
-    }
 
     function handleHarnessFinish(data) {
       setRunningState(false);
@@ -1709,7 +1601,6 @@ export function renderWebUI(): string {
       sendBtnEl.addEventListener("click", sendMessage);
       setupAutocomplete();
 
-      document.getElementById("agent-detail-close").addEventListener("click", () => agentDetailDialogEl.close());
       agentDetailDialogEl.addEventListener("click", (event) => {
         if (event.target === agentDetailDialogEl) agentDetailDialogEl.close();
       });
