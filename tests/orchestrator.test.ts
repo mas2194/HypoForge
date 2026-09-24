@@ -19,7 +19,7 @@ describe("HarnessStateMachine Full Loop", () => {
     }
   });
 
-  it("should execute full autonomous lifecycle through all 11 phases", async () => {
+  it("should execute full autonomous lifecycle through all 12 phases including research", async () => {
     const sm = new HarnessStateMachine({
       goal: "Redesign data indexing layer for sub-millisecond query latency",
       testCommand: "node -e 'process.exit(0)'",
@@ -35,33 +35,42 @@ describe("HarnessStateMachine Full Loop", () => {
     expect(finalState.finished).toBe(true);
     expect(finalState.phase).toBe(Phase.Finished);
 
-    // 2. Verification of Diagnose & Falsify
+    // 2. Verification of Research Phase
+    expect(finalState.research).toBeDefined();
+    expect(finalState.research?.priorArt.length).toBeGreaterThanOrEqual(1);
+    expect(finalState.research?.sotaApproaches.length).toBeGreaterThanOrEqual(1);
+    expect(finalState.research?.suggestedArchitecturalPatterns.length).toBeGreaterThanOrEqual(1);
+    expect(finalState.research?.pitfallsToAvoid.length).toBeGreaterThanOrEqual(1);
+
+    // 3. Verification of Diagnose & Falsify (influenced by research)
     expect(finalState.diagnosis).toBeDefined();
     expect(finalState.falsifiedCandidates?.length).toBeGreaterThanOrEqual(1);
     expect(finalState.falsificationReviews?.length).toBeGreaterThanOrEqual(2);
 
-    // 3. Verification of Implement & Verify
+    // 4. Verification of Implement & Verify
     expect(finalState.implementations.length).toBeGreaterThanOrEqual(1);
     expect(finalState.verifications.length).toBeGreaterThanOrEqual(1);
 
-    // 4. Verification of Compare & Review
+    // 5. Verification of Compare & Review
     expect(finalState.winner).toBeDefined();
     expect(finalState.review).toBeDefined();
     expect(finalState.review?.approved).toBe(true);
 
-    // 5. Verification of Publish & Learn (ADR + Artifacts)
+    // 6. Verification of Publish & Learn (ADR + Artifacts)
     expect(finalState.publishedPrUrl).toBeDefined();
     expect(finalState.adrFilename).toMatch(/^ADR-\d{4}\.md$/);
 
     // Check durable memory files on disk
     const runDir = path.resolve(".agent/runs", finalState.runId);
     const objectiveExists = await fs.access(path.resolve(runDir, "objective.json")).then(() => true).catch(() => false);
+    const researchExists = await fs.access(path.resolve(runDir, "research.json")).then(() => true).catch(() => false);
     const diagnosisExists = await fs.access(path.resolve(runDir, "diagnosis.json")).then(() => true).catch(() => false);
     const falsificationExists = await fs.access(path.resolve(runDir, "falsification.json")).then(() => true).catch(() => false);
     const reviewExists = await fs.access(path.resolve(runDir, "review.json")).then(() => true).catch(() => false);
     const finalExists = await fs.access(path.resolve(runDir, "final.json")).then(() => true).catch(() => false);
 
     expect(objectiveExists).toBe(true);
+    expect(researchExists).toBe(true);
     expect(diagnosisExists).toBe(true);
     expect(falsificationExists).toBe(true);
     expect(reviewExists).toBe(true);

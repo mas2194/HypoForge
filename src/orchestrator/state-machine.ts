@@ -3,16 +3,19 @@ import { Evaluator } from "../evaluator/runner.js";
 import { CodexClientManager } from "../codex/client.js";
 import { DurableMemoryManager } from "../memory/durable-memory.js";
 import { GitHubBroker } from "../github/broker.js";
+import { runResearchPhase } from "../phases/research.js";
 import { runArchitectPhase } from "../phases/architect.js";
 import { runFalsifyPhase, type FalsifiedCandidate } from "../phases/falsify.js";
 import { runImplementPhase } from "../phases/implement.js";
 import { runCleanRoomReviewPhase } from "../phases/review.js";
+import type { ResearchBrief } from "../schemas/research.js";
 import type { Diagnosis, CandidateHypothesis } from "../schemas/diagnosis.js";
 import type { CandidateImplementation } from "../schemas/candidate.js";
 import type { VerificationResult, ReviewResult } from "../schemas/result.js";
 
 export enum Phase {
   Inspect = "Inspect",
+  Research = "Research",
   Diagnose = "Diagnose",
   Falsify = "Falsify",
   Implement = "Implement",
@@ -29,6 +32,7 @@ export interface OrchestratorState {
   phase: Phase;
   goal: string;
   runId: string;
+  research?: ResearchBrief;
   diagnosis?: Diagnosis;
   falsifiedCandidates?: CandidateHypothesis[];
   falsificationReviews?: FalsifiedCandidate[];
@@ -99,14 +103,32 @@ export class HarnessStateMachine {
           timestamp: new Date().toISOString(),
           repoRoot: this.worktreeManager.repoRoot,
         });
+        this.state.phase = Phase.Research;
+        break;
+      }
+
+      case Phase.Research: {
+        console.log(`[Phase: Research] Conducting literature & prior-art survey on SOTA approaches...`);
+        this.state.research = await runResearchPhase(
+          { goal: this.state.goal, repoPath: this.worktreeManager.repoRoot },
+          this.codexManager
+        );
+        await this.memoryManager.saveArtifact(this.state.runId, "research.json", this.state.research);
+        console.log(
+          `[Phase: Research] Completed survey with ${this.state.research.priorArt.length} prior art studies and ${this.state.research.sotaApproaches.length} SOTA approaches.`
+        );
         this.state.phase = Phase.Diagnose;
         break;
       }
 
       case Phase.Diagnose: {
-        console.log(`[Phase: Diagnose] Analyzing goal across Intervention Ladder...`);
+        console.log(`[Phase: Diagnose] Analyzing goal across Intervention Ladder informed by research...`);
         this.state.diagnosis = await runArchitectPhase(
-          { goal: this.state.goal, repoPath: this.worktreeManager.repoRoot },
+          {
+            goal: this.state.goal,
+            repoPath: this.worktreeManager.repoRoot,
+            research: this.state.research,
+          },
           this.codexManager
         );
         await this.memoryManager.saveArtifact(this.state.runId, "diagnosis.json", this.state.diagnosis);
@@ -265,9 +287,13 @@ export class HarnessStateMachine {
       case Phase.Learn: {
         if (this.state.winner) {
           console.log(`[Phase: Learn] Recording Architecture Decision Record (ADR) in repository...`);
+          const contextText = this.state.research?.problemClassification
+            ? `Domain: ${this.state.research.problemClassification}. SOTA approach: ${this.state.research.sotaApproaches[0]?.technique ?? "N/A"}. Investigated alternatives via parallel worktrees across the Intervention Ladder.`
+            : `Goal required solving: ${this.state.goal}. Investigated alternatives via parallel worktrees across the Intervention Ladder.`;
+
           const adrFile = await this.memoryManager.recordDecisionRecord(
             this.state.goal,
-            `Goal required solving: ${this.state.goal}. Investigated alternatives via parallel worktrees across the Intervention Ladder.`,
+            contextText,
             `Selected candidate "${this.state.winner.implementation.candidateId}" (Level: ${this.state.winner.implementation.level}) based on objective verification score: ${this.state.winner.verification.score.toFixed(2)}.`,
             `Clean-room review verified no architecture regressions.`
           );
@@ -293,6 +319,9 @@ export class HarnessStateMachine {
         this.state.finished = true;
         break;
       }
+
+      default:
+        throw new Error(`Unhandled phase: ${this.state.phase}`);
     }
 
     return this.state;
