@@ -1,12 +1,30 @@
 import "dotenv/config";
-import { CodexClientManager } from "./codex/client.js";
+import { HarnessStateMachine } from "./orchestrator/state-machine.js";
 
 async function main() {
   console.log("=== Autonomous Agent Harness Starting ===");
-  console.log("Mode: Evidence-based Architecture Exploration");
+  console.log("Mode: Evidence-based Architecture Exploration (MVP)\n");
 
-  const manager = new CodexClientManager();
-  console.log("Codex SDK & Agents SDK initialized successfully.");
+  const goal = process.argv.slice(2).join(" ") || "Refactor and optimize system module";
+  console.log(`Target Goal: "${goal}"\n`);
+
+  const harness = new HarnessStateMachine({
+    goal,
+    useCodex: Boolean(process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY),
+    testCommand: process.env.HARNESS_TEST_COMMAND || "npm test",
+  });
+
+  const finalState = await harness.runUntilFinished();
+
+  console.log("\n=== Execution Summary ===");
+  console.log(`Final Phase: ${finalState.phase}`);
+  if (finalState.winner) {
+    console.log(`Winning Candidate: ${finalState.winner.implementation.candidateId}`);
+    console.log(`Intervention Level: ${finalState.winner.implementation.level}`);
+    console.log(`Final Evidence Score: ${finalState.winner.verification.score.toFixed(2)}`);
+  } else {
+    console.log("No winning candidate integrated.");
+  }
 }
 
 main().catch((err) => {
