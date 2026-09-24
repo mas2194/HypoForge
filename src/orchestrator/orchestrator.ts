@@ -4,7 +4,7 @@ import { DurableMemoryManager } from "../memory/durable-memory.js";
 import { SkillManager } from "../skills/skill-manager.js";
 import { TrajectoryExporter } from "../trajectory/exporter.js";
 import { GitHubBroker } from "../github/broker.js";
-import { CodexClientManager } from "../codex/client.js";
+import { CodexClientManager, type SandboxMode, type ApprovalMode } from "../codex/client.js";
 import { ContextCompactor } from "./compactor.js";
 import { buildHarnessBehaviorTree } from "./tree.js";
 import type { BTNode, NodeStatus } from "../bt/types.js";
@@ -21,6 +21,8 @@ export interface OrchestratorOptions {
   repoRoot?: string;
   testCommand?: string;
   useCodex?: boolean;
+  codexSandboxMode?: SandboxMode;
+  codexApprovalPolicy?: ApprovalMode;
   publishPr?: boolean;
   maxExplorationAttempts?: number;
   budgetLimits?: Partial<BudgetLimits>;
@@ -53,7 +55,10 @@ export class HarnessOrchestrator {
 
     if (options.useCodex) {
       try {
-        codexManager = new CodexClientManager();
+        codexManager = new CodexClientManager({
+          defaultSandboxMode: options.codexSandboxMode,
+          defaultApprovalPolicy: options.codexApprovalPolicy,
+        });
       } catch (err) {
         console.warn("Could not initialize CodexClientManager:", err);
       }

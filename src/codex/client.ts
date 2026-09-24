@@ -9,6 +9,13 @@ import {
 } from "@openai/codex-sdk";
 import { Agent } from "@openai/agents";
 
+export type { SandboxMode, ApprovalMode };
+
+export interface CodexClientOptions {
+  defaultSandboxMode?: SandboxMode;
+  defaultApprovalPolicy?: ApprovalMode;
+}
+
 export interface WorkerOptions {
   workingDirectory: string;
   sandboxMode?: SandboxMode;
@@ -20,9 +27,19 @@ export interface WorkerOptions {
 
 export class CodexClientManager {
   private codex: Codex;
+  public readonly defaultSandboxMode: SandboxMode;
+  public readonly defaultApprovalPolicy: ApprovalMode;
 
-  constructor() {
+  constructor(options: CodexClientOptions = {}) {
     this.codex = new Codex();
+    this.defaultSandboxMode =
+      options.defaultSandboxMode ??
+      (process.env.CODEX_SANDBOX_MODE as SandboxMode) ??
+      "danger-full-access";
+    this.defaultApprovalPolicy =
+      options.defaultApprovalPolicy ??
+      (process.env.CODEX_APPROVAL_POLICY as ApprovalMode) ??
+      "never";
   }
 
   /**
@@ -31,8 +48,8 @@ export class CodexClientManager {
   startWorkerThread(options: WorkerOptions): Thread {
     const threadOpts: ThreadOptions = {
       workingDirectory: options.workingDirectory,
-      sandboxMode: options.sandboxMode ?? "workspace-write",
-      approvalPolicy: options.approvalPolicy ?? "never",
+      sandboxMode: options.sandboxMode ?? this.defaultSandboxMode,
+      approvalPolicy: options.approvalPolicy ?? this.defaultApprovalPolicy,
       webSearchMode: options.webSearchMode ?? "live",
       webSearchEnabled: options.networkAccessEnabled ?? true,
     };
