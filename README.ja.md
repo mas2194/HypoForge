@@ -1,4 +1,4 @@
-# 自律型エージェント・ハーネス (`my_harness`)
+# 自律型エージェント・ハーネス (`HypoForge`)
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x%20%2F%207.x-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -9,7 +9,7 @@
 
 ---
 
-`my_harness` は、TypeScript と OpenAI / Codex SDK を基盤に構築された、  **証拠駆動型の自律ソフトウェア工学エージェント・ハーネス（Autonomous Software Engineering Harness）** です。
+`HypoForge` は、TypeScript と OpenAI / Codex SDK を基盤に構築された、  **証拠駆動型の自律ソフトウェア工学エージェント・ハーネス（Autonomous Software Engineering Harness）** です。
 
 LLMを単なる「diffを生成するパッチ作成器」として扱うのではなく、決定論的な統制アーキテクチャの制御下で稼働する **「仮説探索・反証アルゴリズムの実行エンジン」** として位置付けています。
 
@@ -64,7 +64,7 @@ LLMを単なる「diffを生成するパッチ作成器」として扱うので�
 3. **自己採点バイアス（Echo Chamber）**: コードを書いた張本人であるLLM自身に「実装完了」を判定させ、客観的な品質基準が失われる。
 4. **コンテキスト汚染**: 失敗した試行錯誤の巨大なスタックトレースが対話履歴に蓄積し、モデルの推論能力と注意力が急速に劣化する。
 
-`my_harness` は、この脆弱なアプローチを科学的方法論に基づいた探索サイクルに置き換えます：
+`HypoForge` は、この脆弱なアプローチを科学的方法論に基づいた探索サイクルに置き換えます：
  **仮説生成 $\rightarrow$ 敵対的反証 $\rightarrow$ 並列独立実装 $\rightarrow$ 機械的客観検証 $\rightarrow$ ブラインド第三者査読** 。
 
 ---
@@ -325,8 +325,8 @@ MERGED (マージ完了: 1.0)
 
 ```bash
 # リポジトリのクローン
-git clone https://github.com/mas2194/my_harness.git
-cd my_harness
+git clone https://github.com/mas2194/HypoForge.git
+cd HypoForge
 
 # 依存パッケージのインストール
 pnpm install
@@ -437,7 +437,7 @@ npx tsx src/main.ts --server --port 8080 --model o3-mini --effort high
   - **ハーネス各段階のグラフ（Pipeline Stage Graph）**: `Inspect` → `Triage` → `Explore`（`FAST` または `DEEP`）→ `Integrate` → `Publish` → `Learn` の進行状況をリアルタイムに表示。ノードをクリックすると、その項目の詳細を開きます。`Explore` をクリックすると `Research` から `Review` までの段階別フローを表示し、各段階をクリックすると詳細を確認できます。
   - **Codex風サブエージェント出力（Sub-Agent Output Panel）**: 思考ログ、ツール活動、生成内容、ログ、各段階の要約を Codex Sub-Agent Activity 内に随時インライン表示します。`Explore` を選ぶと `Research` から `Review` までの段階別フローが表示され、段階を選ぶとパネル内の該当箇所へ移動します。
 
-実行中、`my_harness` は以下のフローを自律的に進行します：
+実行中、`HypoForge` は以下のフローを自律的に進行します：
 1. 対象コードベースの AST、依存関係トポロジー、不変条件を自動解析。
 2. 介入ラダー（L0〜L6）に沿った多層的な診断仮説を生成。
 3. 各仮説に対する敵対的反証・批判を実施。
@@ -486,7 +486,7 @@ const harness = new HarnessStateMachine({
 ## ディレクトリ構成
 
 ```text
-my_harness/
+HypoForge/
 ├── AGENTS.md                  # システムの最優先設計原則・制約事項
 ├── .env.example               # 環境変数テンプレート
 ├── prompts/                   # 各役割に特化したシステムプロンプト
