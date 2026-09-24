@@ -1,4 +1,4 @@
-# Autonomous Agent Harness (`my_harness`)
+# Autonomous Agent Harness (`HypoForge`)
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x%20%2F%207.x-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -9,7 +9,7 @@
 
 ---
 
-`my_harness` is an autonomous software engineering harness built on TypeScript and the OpenAI / Codex SDK. Rather than treating Large Language Models as simple "diff generators" that apply superficial patches, `my_harness` treats LLMs as **hypothesis exploration engines** regulated by a deterministic, evidence-driven supervisory architecture.
+`HypoForge` is an autonomous software engineering harness built on TypeScript and the OpenAI / Codex SDK. Rather than treating Large Language Models as simple "diff generators" that apply superficial patches, `HypoForge` treats LLMs as **hypothesis exploration engines** regulated by a deterministic, evidence-driven supervisory architecture.
 
 It systematically eliminates the **"Minimal-Diff Trap"** (where agents apply short-sighted workarounds to minimize changes) through multi-level architectural exploration, counterfactual checks, isolated Git worktrees, metamorphic invariant verification, and blind clean-room peer review.
 
@@ -62,7 +62,7 @@ This heuristic leads to severe engineering failures:
 3. **Self-Grading Bias (Echo Chamber)**: Allowing the same LLM instance that authored the code to declare "implementation successful" without independent adversarial verification.
 4. **Context Window Contamination**: Accumulating megabytes of failed trial traces, which dilutes attention and degrades model reasoning over extended sessions.
 
-`my_harness` replaces this fragile paradigm with a rigorous scientific method: **Hypothesis Generation $\rightarrow$ Counter-Argument Falsification $\rightarrow$ Parallel Isolated Execution $\rightarrow$ Objective Machine Verification $\rightarrow$ Blind Peer Review**.
+`HypoForge` replaces this fragile paradigm with a rigorous scientific method: **Hypothesis Generation $\rightarrow$ Counter-Argument Falsification $\rightarrow$ Parallel Isolated Execution $\rightarrow$ Objective Machine Verification $\rightarrow$ Blind Peer Review**.
 
 ---
 
@@ -231,7 +231,7 @@ Cheap, high-risk tests run first to prune invalid hypotheses with minimal token 
 
 ### 6. Parallel Exploration via Isolated Git Worktrees
 
-Unlike naive agents that pollute the workspace with abandoned intermediate changes, `my_harness` isolates every candidate into dedicated Git worktrees (`worktrees/run-<id>-<cand>/`):
+Unlike naive agents that pollute the workspace with abandoned intermediate changes, `HypoForge` isolates every candidate into dedicated Git worktrees (`worktrees/run-<id>-<cand>/`):
 - Clean git state with separate working trees.
 - Parallel worker execution in isolated filesystem roots.
 - Automated branch cleanup upon candidate rejection.
@@ -269,7 +269,7 @@ Approved candidates are submitted to an independent, blind **Clean-Room Reviewer
 
 ### 10. Structured Evidence Store & Lossless Context Compactor
 
-Extended self-healing loops suffer from context pollution. `my_harness` separates volatile scratchpads from permanent facts:
+Extended self-healing loops suffer from context pollution. `HypoForge` separates volatile scratchpads from permanent facts:
 - **4-Layer Structured Evidence Store**: Immutable records divided into `Observation`, `Assertion`, `Inference`, and `Decision`.
 - **Context Compactor**: Upon backtrack or phase transitions, transient chat logs and massive stack traces are purged. Only negative constraints, violated invariants, and distilled lessons are preserved into prompt projections.
 
@@ -323,8 +323,8 @@ Execution trajectories are automatically recorded and exported in Direct Prefere
 
 ```bash
 # Clone the repository
-git clone https://github.com/mas2194/my_harness.git
-cd my_harness
+git clone https://github.com/mas2194/HypoForge.git
+cd HypoForge
 
 # Install dependencies
 pnpm install
@@ -386,7 +386,7 @@ node dist/main.js
 
 #### Interactive Slash Commands
 
-Similar to Codex CLI, `my_harness` supports dynamic interactive slash commands in the interactive prompt:
+Similar to Codex CLI, `HypoForge` supports dynamic interactive slash commands in the interactive prompt:
 
 - **`/model`** or **`/model <name|number>`**:
   - Without arguments: Lists all available Codex models (auto-loaded from `~/.codex/models_cache.json`), supported reasoning effort levels, and interactive selection.
@@ -435,7 +435,7 @@ Open `http://localhost:3000` in your browser for a split-screen dashboard:
   - **Harness Stage Pipeline Graph**: Real-time visualization of pipeline stages (`Inspect` → `Triage` → `Explore` → `Integrate` → `Publish` → `Learn`) with live status indicators and interactive phase filtering.
   - **Codex Sub-Agent Activity Panel**: Sub-agent thoughts, tool activity, generated output, and logs render inline as they arrive, alongside phase summaries. Selecting `Explore` reveals its ordered phase flow (`Research` through `Review`); phase steps jump to their activity in the panel.
 
-During execution, `my_harness` will:
+During execution, `HypoForge` will:
 1. Inspect the repository AST, topology, and invariant contracts.
 2. Formulate diagnostic hypotheses across multiple intervention levels.
 3. Subject hypotheses to counter-argument falsification.
@@ -464,7 +464,7 @@ Save the private key `.pem` file to `./secrets/github-app.private-key.pem` and p
 
 ### Multi-Dimensional Budget Governor
 
-To prevent run-away exploration costs, `my_harness` enforces a multi-dimensional budget governor:
+To prevent run-away exploration costs, `HypoForge` enforces a multi-dimensional budget governor:
 
 ```typescript
 const harness = new HarnessStateMachine({
@@ -484,7 +484,7 @@ const harness = new HarnessStateMachine({
 ## Repository Structure
 
 ```text
-my_harness/
+HypoForge/
 ├── AGENTS.md                  # Engineering principles & negative constraints
 ├── .env.example               # Environment variables template
 ├── prompts/                   # Specialized system prompts for each agent role
