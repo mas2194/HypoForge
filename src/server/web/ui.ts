@@ -471,6 +471,7 @@ export function renderWebUI(): string {
       display: flex;
       flex-direction: column;
       height: 100%;
+      min-height: 0;
       overflow: hidden;
     }
 
@@ -600,6 +601,7 @@ export function renderWebUI(): string {
     /* Sub-Agent Output Panel (Codex Style) */
     .subagent-section {
       flex: 1;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -646,7 +648,9 @@ export function renderWebUI(): string {
 
     .subagent-list {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
+      overscroll-behavior: contain;
       padding: 16px;
       display: flex;
       flex-direction: column;
