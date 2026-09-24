@@ -90,6 +90,14 @@ export class TracerNode<TContext extends TraceableContext> implements BTNode<TCo
     let status: NodeStatus = "FAILURE";
     let errorMsg: string | undefined;
 
+    // Notify event bus of node start if available
+    const eventBus = (context as any)?.eventBus;
+    eventBus?.emitNode?.({
+      nodeName: this.name,
+      status: "RUNNING",
+      startedAt,
+    });
+
     try {
       status = await this.child.tick(context);
       return status;
@@ -99,17 +107,26 @@ export class TracerNode<TContext extends TraceableContext> implements BTNode<TCo
     } finally {
       const endTime = performance.now();
       const completedAt = new Date().toISOString();
+      const durationMs = Math.round(endTime - startTime);
       const record: NodeExecutionRecord = {
         nodeName: this.name,
         status,
         startedAt,
         completedAt,
-        durationMs: Math.round(endTime - startTime),
+        durationMs,
         error: errorMsg,
       };
       if (context.traceLog) {
         context.traceLog.push(record);
       }
+      eventBus?.emitNode?.({
+        nodeName: this.name,
+        status,
+        durationMs,
+        startedAt,
+        completedAt,
+        error: errorMsg,
+      });
     }
   }
 }

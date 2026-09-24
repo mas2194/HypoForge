@@ -8,6 +8,7 @@ import {
 } from "../schemas/candidate.js";
 import type { WorktreeManager } from "../git/worktree.js";
 import type { CodexClientManager } from "../codex/client.js";
+import type { HarnessEventBus } from "../server/event-bus.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +17,7 @@ export interface ImplementOptions {
   worktreeManager: WorktreeManager;
   codexManager?: CodexClientManager;
   runId?: string;
+  eventBus?: HarnessEventBus;
 }
 
 export async function runImplementPhase(
@@ -35,6 +37,18 @@ export async function runImplementPhase(
   const candidateTasks = candidates.map(async (candidate) => {
     const branchName = `agent/${runId}/${candidate.id}`;
     const dirName = `${runId}-${candidate.id}`;
+    
+    options.eventBus?.emitSubAgent({
+      agentId: `worker-${candidate.id}`,
+      name: `Worker [${candidate.id}]`,
+      role: `Implement solution in isolated worktree (${candidate.level})`,
+      phase: "Implement",
+      status: "running",
+      type: "start",
+      message: `Creating worktree on branch ${branchName}...`,
+      details: { candidateId: candidate.id, level: candidate.level, hypothesis: candidate.hypothesis },
+    });
+
     const worktreePath = await worktreeManager.createWorktree(branchName, dirName);
 
     const impl: CandidateImplementation = CandidateImplementationSchema.parse({
@@ -43,6 +57,17 @@ export async function runImplementPhase(
       worktreePath,
       branchName,
       status: "implementing",
+    });
+
+    options.eventBus?.emitSubAgent({
+      agentId: `worker-${candidate.id}`,
+      name: `Worker [${candidate.id}]`,
+      role: `Implement solution in isolated worktree (${candidate.level})`,
+      phase: "Implement",
+      status: "running",
+      type: "tool",
+      message: `Worktree mounted at ${worktreePath}. Executing Codex agent...`,
+      details: { worktreePath, branchName },
     });
 
     // 2. Run Codex worker thread inside the isolated worktree
@@ -67,13 +92,45 @@ Instructions:
 
         await thread.run(prompt);
         impl.status = "completed";
-      } catch (err) {
+
+        options.eventBus?.emitSubAgent({
+          agentId: `worker-${candidate.id}`,
+          name: `Worker [${candidate.id}]`,
+          role: `Implement solution in isolated worktree (${candidate.level})`,
+          phase: "Implement",
+          status: "completed",
+          type: "finish",
+          message: `Implementation completed successfully for candidate ${candidate.id}`,
+          details: { candidateId: candidate.id, worktreePath },
+        });
+      } catch (err: any) {
         console.error(`Implementation failed for ${candidate.id}:`, err);
         impl.status = "failed";
+
+        options.eventBus?.emitSubAgent({
+          agentId: `worker-${candidate.id}`,
+          name: `Worker [${candidate.id}]`,
+          role: `Implement solution in isolated worktree (${candidate.level})`,
+          phase: "Implement",
+          status: "failed",
+          type: "finish",
+          message: `Implementation failed: ${err?.message || err}`,
+          details: { candidateId: candidate.id, error: String(err) },
+        });
       }
     } else {
       // Simulation / offline mode
       impl.status = "completed";
+      options.eventBus?.emitSubAgent({
+        agentId: `worker-${candidate.id}`,
+        name: `Worker [${candidate.id}]`,
+        role: `Implement solution in isolated worktree (${candidate.level})`,
+        phase: "Implement",
+        status: "completed",
+        type: "finish",
+        message: `Offline/Simulation mode: candidate ${candidate.id} ready for verification.`,
+        details: { candidateId: candidate.id, worktreePath },
+      });
     }
 
     return impl;

@@ -414,6 +414,29 @@ node dist/main.js
   - **Tab**（または **↓** / **↑** / **Shift+Tab**）を押すことで候補を順次切り替えて選択できます。
   - **Enter** または **Space** で候補を確定し、そのまま指示の入力を続けられます（**Esc** でキャンセル）。
 
+#### Web UI サーバーモード（`--server` / `-s`）
+
+起動時に `--server`（または `-s`）オプションを渡すことで、ブラウザから操作できる Web UI サーバーを起動できます：
+
+```bash
+# Web UI サーバーの起動（デフォルトポート: 3000）
+npm run server
+# または
+npx tsx src/main.ts --server
+
+# ポート番号やモデルを指定して起動
+npx tsx src/main.ts --server --port 8080 --model o3-mini --effort high
+```
+
+ブラウザで `http://localhost:3000` にアクセスすると、左右2分割のモダンなUIで操作できます：
+- **左側ペイン（Model Conversation）**:
+  - チャット形式で目標（Goal）を入力し、モデルと対話しながら自律探索を実行。
+  - `@<file>` 入力時の自動補完ドロップダウンや、`/model`, `/effort`, `/help` などのスラッシュコマンドに対応。
+  - ヘッダーからアクティブモデルや推論Effortを動的に切り替え可能。
+- **右側ペイン（Harness Stage Graph & Codex Sub-Agent Activity）**:
+  - **ハーネス各段階のグラフ（Pipeline Stage Graph）**: `Inspect` → `Triage` → `Explore`（`FAST` または `DEEP`）→ `Integrate` → `Publish` → `Learn` の各段階の進行状況（実行中アニメーション、成功、失敗）をリアルタイムに表示。ノードをクリックして該当エージェントへジャンプ可能。
+  - **Codex風サブエージェント出力（Sub-Agent Output Panel）**: 各フェーズを担当するサブエージェント（`Architect`, `Falsifier`, 独立worktreeで動く各 `Worker`, `Evaluator`, `Reviewer`, `Integrator` 等）の思考ログ（Reasoning）、実行ツール、検証証拠、メトリクスをカード形式でリアルタイムにストリーミング表示。
+
 実行中、`my_harness` は以下のフローを自律的に進行します：
 1. 対象コードベースの AST、依存関係トポロジー、不変条件を自動解析。
 2. 介入ラダー（L0〜L6）に沿った多層的な診断仮説を生成。

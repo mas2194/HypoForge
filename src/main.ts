@@ -21,6 +21,7 @@ import {
   filterFileCandidates,
   resolveFileMentions,
 } from "./codex/file-mention.js";
+import { startWebServer } from "./server/server.js";
 
 interface CandidateCycleState {
   active: boolean;
@@ -351,15 +352,19 @@ export async function runHarness(goal: string, options: RunHarnessOptions) {
 }
 
 /**
- * Parses CLI arguments for flags (--model, -m, --effort, -e) and extracts the remaining goal.
+ * Parses CLI arguments for flags (--model, -m, --effort, -e, --server, -s, --port, -p) and extracts the remaining goal.
  */
 export function parseCliArgs(args: string[]): {
   model?: string;
   effort?: ModelReasoningEffort;
   goal?: string;
+  server?: boolean;
+  port?: number;
 } {
   let model: string | undefined;
   let effort: ModelReasoningEffort | undefined;
+  let server = false;
+  let port: number | undefined;
   const remaining: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
@@ -372,13 +377,19 @@ export function parseCliArgs(args: string[]): {
       if (i + 1 < args.length) {
         effort = args[++i] as ModelReasoningEffort;
       }
+    } else if (arg === "--server" || arg === "-s") {
+      server = true;
+    } else if (arg === "--port" || arg === "-p") {
+      if (i + 1 < args.length) {
+        port = parseInt(args[++i], 10);
+      }
     } else {
       remaining.push(arg);
     }
   }
 
   const goal = remaining.join(" ").trim();
-  return { model, effort, goal: goal || undefined };
+  return { model, effort, goal: goal || undefined, server, port };
 }
 
 async function main() {
@@ -390,6 +401,30 @@ async function main() {
   let currentModel = resolveDefaultModel(cliParsed.model);
   let currentEffort = resolveDefaultEffort(cliParsed.effort);
   const availableModels = loadCachedModels();
+
+  // If launched with --server or -s, start the Web UI Server
+  if (cliParsed.server) {
+    const port = cliParsed.port ?? (process.env.PORT ? parseInt(process.env.PORT, 10) : 3000);
+    const serverInstance = await startWebServer({
+      port,
+      model: currentModel,
+      effort: currentEffort,
+    });
+
+    console.log("============================================================");
+    console.log(`  🌐 Web UI Server Running at: http://localhost:${serverInstance.port}`);
+    console.log(`  Active Model: ${currentModel} | Reasoning Effort: ${currentEffort}`);
+    console.log("  Open the URL above in your browser to interact with the harness.");
+    console.log("  Press Ctrl+C to stop the server.");
+    console.log("============================================================");
+
+    process.on("SIGINT", async () => {
+      console.log("\nShutting down web server...");
+      await serverInstance.close();
+      process.exit(0);
+    });
+    return;
+  }
 
   const getSlashContext = (): SlashCommandContext => ({
     currentModel,

@@ -33,15 +33,37 @@ export interface CodexModelInfo {
   slug: string;
   displayName: string;
   description: string;
+  category?: string;
   defaultReasoningLevel?: ModelReasoningEffort;
   supportedReasoningLevels?: ModelReasoningLevelInfo[];
 }
 
-export const FALLBACK_MODELS: readonly CodexModelInfo[] = [
+export const CATEGORY_ORDER = [
+  "GPT-6 Frontier",
+  "o-Series Reasoning",
+  "GPT-4o & GPT-4",
+  "GPT-5 Series",
+  "Specialized",
+  "Other Models",
+] as const;
+
+export function inferModelCategory(slug: string): string {
+  const s = slug.toLowerCase();
+  if (s.startsWith("gpt-6") || s === "gpt-reserve") return "GPT-6 Frontier";
+  if (s.startsWith("o1") || s.startsWith("o3") || s.startsWith("o4")) return "o-Series Reasoning";
+  if (s.startsWith("gpt-4")) return "GPT-4o & GPT-4";
+  if (s.startsWith("gpt-5")) return "GPT-5 Series";
+  if (s.includes("review") || s.includes("audit")) return "Specialized";
+  return "Other Models";
+}
+
+export const STANDARD_MODELS: readonly CodexModelInfo[] = [
+  // --- GPT-6 Series (Frontier) ---
   {
     slug: "gpt-6-luna",
     displayName: "GPT-6-Luna",
-    description: "Balanced reasoning and coding model",
+    description: "Fast, balanced reasoning and coding model",
+    category: "GPT-6 Frontier",
     defaultReasoningLevel: "medium",
     supportedReasoningLevels: [
       { effort: "low", description: "Fast responses with lighter reasoning" },
@@ -54,7 +76,8 @@ export const FALLBACK_MODELS: readonly CodexModelInfo[] = [
   {
     slug: "gpt-6-sol",
     displayName: "GPT-6-Sol",
-    description: "High-performance coding and reasoning",
+    description: "Workhorse model for coding and everyday work",
+    category: "GPT-6 Frontier",
     defaultReasoningLevel: "medium",
     supportedReasoningLevels: [
       { effort: "low", description: "Fast responses with lighter reasoning" },
@@ -68,7 +91,8 @@ export const FALLBACK_MODELS: readonly CodexModelInfo[] = [
   {
     slug: "gpt-6-astra",
     displayName: "GPT-6-Astra",
-    description: "Frontier intelligence for complex engineering",
+    description: "Frontier intelligence for complex engineering & research",
+    category: "GPT-6 Frontier",
     defaultReasoningLevel: "low",
     supportedReasoningLevels: [
       { effort: "low", description: "Fast responses with lighter reasoning" },
@@ -80,30 +104,125 @@ export const FALLBACK_MODELS: readonly CodexModelInfo[] = [
     ],
   },
   {
+    slug: "gpt-reserve",
+    displayName: "GPT-Reserve",
+    description: "Fast and affordable agentic coding model",
+    category: "GPT-6 Frontier",
+    defaultReasoningLevel: "medium",
+  },
+
+  // --- o-Series (Reasoning) ---
+  {
+    slug: "o3-mini",
+    displayName: "o3-mini",
+    description: "High-speed reasoning model with configurable effort for STEM & code",
+    category: "o-Series Reasoning",
+    defaultReasoningLevel: "medium",
+    supportedReasoningLevels: [
+      { effort: "low", description: "Fast responses with lighter reasoning" },
+      { effort: "medium", description: "Balances speed and reasoning depth" },
+      { effort: "high", description: "Maximum reasoning depth for complex problems" },
+    ],
+  },
+  {
+    slug: "o1",
+    displayName: "o1",
+    description: "Flagship reasoning model for deep thinking and complex STEM/coding",
+    category: "o-Series Reasoning",
+    defaultReasoningLevel: "medium",
+    supportedReasoningLevels: [
+      { effort: "low", description: "Fast responses with lighter reasoning" },
+      { effort: "medium", description: "Balances speed and reasoning depth" },
+      { effort: "high", description: "Maximum reasoning depth for complex problems" },
+    ],
+  },
+  {
+    slug: "o1-mini",
+    displayName: "o1-mini",
+    description: "Fast, cost-efficient reasoning model for code and STEM tasks",
+    category: "o-Series Reasoning",
+    defaultReasoningLevel: "medium",
+    supportedReasoningLevels: [
+      { effort: "low", description: "Fast responses with lighter reasoning" },
+      { effort: "medium", description: "Balances speed and reasoning depth" },
+      { effort: "high", description: "Maximum reasoning depth for complex problems" },
+    ],
+  },
+  {
+    slug: "o1-preview",
+    displayName: "o1-preview",
+    description: "Early preview reasoning model",
+    category: "o-Series Reasoning",
+    defaultReasoningLevel: "medium",
+  },
+
+  // --- GPT-4o & GPT-4 ---
+  {
+    slug: "gpt-4o",
+    displayName: "GPT-4o",
+    description: "High-intelligence flagship omni model for multimodal tasks & coding",
+    category: "GPT-4o & GPT-4",
+  },
+  {
+    slug: "gpt-4o-mini",
+    displayName: "GPT-4o-mini",
+    description: "Fast and affordable omni model for lightweight tasks",
+    category: "GPT-4o & GPT-4",
+  },
+  {
+    slug: "gpt-4-turbo",
+    displayName: "GPT-4-Turbo",
+    description: "Advanced GPT-4 Turbo model with vision support",
+    category: "GPT-4o & GPT-4",
+  },
+  {
+    slug: "gpt-4",
+    displayName: "GPT-4",
+    description: "Classic reliable foundation GPT-4 model",
+    category: "GPT-4o & GPT-4",
+  },
+
+  // --- GPT-5 Series ---
+  {
     slug: "gpt-5.6-terra",
     displayName: "GPT-5.6-Terra",
-    description: "Compact, efficient everyday reasoning",
+    description: "Compact, balanced model for straightforward work",
+    category: "GPT-5 Series",
     defaultReasoningLevel: "medium",
   },
   {
     slug: "gpt-5.6-sol",
     displayName: "GPT-5.6-Sol",
-    description: "Optimized for rapid iteration",
+    description: "Coding model for complex work and rapid iteration",
+    category: "GPT-5 Series",
     defaultReasoningLevel: "low",
   },
   {
     slug: "gpt-5.6-luna",
     displayName: "GPT-5.6-Luna",
-    description: "Balanced coding model",
+    description: "Fast and efficient coding model",
+    category: "GPT-5 Series",
     defaultReasoningLevel: "medium",
   },
   {
     slug: "gpt-5.5",
     displayName: "GPT-5.5",
-    description: "Standard coding model",
+    description: "Legacy coding model",
+    category: "GPT-5 Series",
+    defaultReasoningLevel: "medium",
+  },
+
+  // --- Specialized ---
+  {
+    slug: "codex-auto-review",
+    displayName: "Codex Auto Review",
+    description: "Automatic approval review model for Codex",
+    category: "Specialized",
     defaultReasoningLevel: "medium",
   },
 ];
+
+export const FALLBACK_MODELS: readonly CodexModelInfo[] = STANDARD_MODELS;
 
 export interface ParsedCodexConfig {
   model?: string;
@@ -163,41 +282,84 @@ export function loadCodexConfigFile(customPath?: string): ParsedCodexConfig | nu
 }
 
 /**
- * Loads cached models from ~/.codex/models_cache.json or fallback list.
+ * Loads all available models by combining standard known models and cached models from ~/.codex/models_cache.json.
  */
 export function loadCachedModels(customPath?: string): CodexModelInfo[] {
   const cachePath =
     customPath ??
     (process.env.HOME ? path.join(process.env.HOME, ".codex", "models_cache.json") : undefined);
 
-  if (!cachePath || !fs.existsSync(cachePath)) {
-    return [...FALLBACK_MODELS];
+  const modelMap = new Map<string, CodexModelInfo>();
+
+  // 1. Initialize with all standard known models
+  for (const model of STANDARD_MODELS) {
+    modelMap.set(model.slug, { ...model });
   }
 
-  try {
-    const raw = fs.readFileSync(cachePath, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.models)) {
-      return [...FALLBACK_MODELS];
+  // 2. If cached models exist, merge/overlay them
+  if (cachePath && fs.existsSync(cachePath)) {
+    try {
+      const raw = fs.readFileSync(cachePath, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.models)) {
+        for (const m of parsed.models) {
+          const slug = m.slug || m.id;
+          if (!slug || typeof slug !== "string") continue;
+
+          const existing = modelMap.get(slug);
+          const category = m.category || existing?.category || inferModelCategory(slug);
+          const displayName = m.display_name || m.name || existing?.displayName || slug;
+          const description = m.description || existing?.description || "";
+          const defaultReasoningLevel = (m.default_reasoning_level || existing?.defaultReasoningLevel) as
+            | ModelReasoningEffort
+            | undefined;
+          const supportedReasoningLevels =
+            Array.isArray(m.supported_reasoning_levels) && m.supported_reasoning_levels.length > 0
+              ? m.supported_reasoning_levels.map((lvl: any) => ({
+                  effort: lvl.effort as ModelReasoningEffort,
+                  description: lvl.description || "",
+                }))
+              : existing?.supportedReasoningLevels;
+
+          modelMap.set(slug, {
+            slug,
+            displayName,
+            description,
+            category,
+            defaultReasoningLevel,
+            supportedReasoningLevels,
+          });
+        }
+      }
+    } catch {
+      // Fallback cleanly to standard models on read/parse error
     }
-
-    const models: CodexModelInfo[] = parsed.models.map((m: any) => ({
-      slug: m.slug || m.id || "",
-      displayName: m.display_name || m.name || m.slug || "",
-      description: m.description || "",
-      defaultReasoningLevel: m.default_reasoning_level as ModelReasoningEffort | undefined,
-      supportedReasoningLevels: Array.isArray(m.supported_reasoning_levels)
-        ? m.supported_reasoning_levels.map((lvl: any) => ({
-            effort: lvl.effort as ModelReasoningEffort,
-            description: lvl.description || "",
-          }))
-        : undefined,
-    })).filter((m: CodexModelInfo) => Boolean(m.slug));
-
-    return models.length > 0 ? models : [...FALLBACK_MODELS];
-  } catch {
-    return [...FALLBACK_MODELS];
   }
+
+  // 3. Sort models by canonical category order, then natural model order
+  const standardOrderMap = new Map<string, number>();
+  STANDARD_MODELS.forEach((m, idx) => {
+    standardOrderMap.set(m.slug, idx);
+  });
+
+  const allModels = Array.from(modelMap.values());
+  allModels.sort((a, b) => {
+    const catA = a.category || inferModelCategory(a.slug);
+    const catB = b.category || inferModelCategory(b.slug);
+    const idxA = (CATEGORY_ORDER as readonly string[]).indexOf(catA);
+    const idxB = (CATEGORY_ORDER as readonly string[]).indexOf(catB);
+    const orderA = idxA === -1 ? 999 : idxA;
+    const orderB = idxB === -1 ? 999 : idxB;
+    if (orderA !== orderB) return orderA - orderB;
+
+    const stdIdxA = standardOrderMap.has(a.slug) ? standardOrderMap.get(a.slug)! : 999;
+    const stdIdxB = standardOrderMap.has(b.slug) ? standardOrderMap.get(b.slug)! : 999;
+    if (stdIdxA !== stdIdxB) return stdIdxA - stdIdxB;
+
+    return a.slug.localeCompare(b.slug);
+  });
+
+  return allModels;
 }
 
 /**

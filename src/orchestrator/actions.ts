@@ -17,11 +17,35 @@ import { inspectRepository, generateProblemSignature } from "../phases/inspect-r
 import { createAndSaveVerifiedMemory, promoteMemoryProvenance } from "../memory/verified-memory.js";
 import { triageExecutionPath } from "../phases/triage.js";
 import { AdaptiveHypothesisScheduler } from "../phases/adaptive-scheduler.js";
+import {
+  emitPhaseChange,
+  emitSubAgentStart,
+  emitSubAgentLog,
+  emitSubAgentFinish,
+} from "../server/events.js";
 
 export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Inspect;
+  emitPhaseChange(ctx, "started", "Inspecting repository topology & recalling memories");
+  emitSubAgentStart(
+    ctx,
+    "agent-inspect",
+    "Repository Inspector",
+    "Analyze repo invariants, subsystem topology & recall durable memories",
+    `Initializing run ${ctx.runId} for goal: "${ctx.goal}"`
+  );
+
   if (ctx.repoInspection && ctx.problemSignature) {
     console.log(`[Phase: Inspect] Resuming from recovered repository inspection artifact.`);
+    emitSubAgentFinish(
+      ctx,
+      "agent-inspect",
+      "Repository Inspector",
+      "Analyze repo invariants, subsystem topology & recall durable memories",
+      "completed",
+      "Resumed from recovered repository inspection artifact."
+    );
+    emitPhaseChange(ctx, "completed", "Inspect phase recovered");
     return "SUCCESS";
   }
   console.log(`[Phase: Inspect] Initializing run ${ctx.runId} for goal: "${ctx.goal}"`);
@@ -37,6 +61,15 @@ export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.repoInspection = await inspectRepository(ctx.worktreeManager.repoRoot);
   console.log(
     `[Phase: Inspect] Topology inspected: ${ctx.repoInspection.targetSubsystems.length} subsystem(s), ${ctx.repoInspection.recentGitHistory.length} recent commits.`
+  );
+  emitSubAgentLog(
+    ctx,
+    "agent-inspect",
+    "Repository Inspector",
+    "Analyze repo invariants, subsystem topology & recall durable memories",
+    "tool",
+    `Topology: ${ctx.repoInspection.targetSubsystems.length} subsystems, ${ctx.repoInspection.recentGitHistory.length} commits.`,
+    { subsystems: ctx.repoInspection.targetSubsystems }
   );
 
   // Step 2: Problem Signature Generation (Prevents Memory Anchoring)
@@ -68,13 +101,45 @@ export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
   }
 
   await ctx.executionJournal.recordPhaseComplete(ctx.runId, "Inspect", ctx.iteration);
+  emitSubAgentFinish(
+    ctx,
+    "agent-inspect",
+    "Repository Inspector",
+    "Analyze repo invariants, subsystem topology & recall durable memories",
+    "completed",
+    `Inspection complete. Recalled ${ctx.recalledMemories.length} memories, matched ${ctx.activeSkills.length} skills.`,
+    {
+      recalledMemories: ctx.recalledMemories,
+      activeSkills: ctx.activeSkills.map((s) => s.name),
+    }
+  );
+  emitPhaseChange(ctx, "completed", `Inspect complete: ${ctx.activeSkills.length} skills matched`);
   return "SUCCESS";
 }
 
 export async function triageAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Triage;
+  emitPhaseChange(ctx, "started", "Evaluating execution path: FAST or DEEP");
+  emitSubAgentStart(
+    ctx,
+    "agent-triage",
+    "Triage Gatekeeper",
+    "Analyze blast radius and assign FAST or DEEP execution path",
+    "Evaluating goal against repository structure..."
+  );
+
   if (ctx.triageDecision) {
     console.log(`[Phase: Triage] Resuming from recovered triage decision: '${ctx.triageDecision.path}'.`);
+    emitSubAgentFinish(
+      ctx,
+      "agent-triage",
+      "Triage Gatekeeper",
+      "Analyze blast radius and assign FAST or DEEP execution path",
+      "completed",
+      `Resumed path: ${ctx.triageDecision.path}`,
+      { decision: ctx.triageDecision }
+    );
+    emitPhaseChange(ctx, "completed", `Path: ${ctx.triageDecision.path}`);
     return "SUCCESS";
   }
   const inspection = ctx.repoInspection ?? {
@@ -100,16 +165,46 @@ export async function triageAction(ctx: HarnessContext): Promise<NodeStatus> {
   console.log(`[Phase: Triage] Reason: ${decision.reason}`);
   await ctx.executionJournal.recordPhaseComplete(ctx.runId, "Triage", ctx.iteration, { decision });
 
+  emitSubAgentFinish(
+    ctx,
+    "agent-triage",
+    "Triage Gatekeeper",
+    "Analyze blast radius and assign FAST or DEEP execution path",
+    "completed",
+    `Selected path '${decision.path}' (Confidence: ${(decision.confidence * 100).toFixed(0)}%): ${decision.reason}`,
+    { decision }
+  );
+  emitPhaseChange(ctx, "completed", `Selected path: ${decision.path}`);
+
   return "SUCCESS";
 }
 
 
 export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Research;
+  emitPhaseChange(ctx, "started", "Surveying prior art & SOTA approaches");
+  emitSubAgentStart(
+    ctx,
+    "agent-research",
+    "Literature Researcher",
+    "Conduct prior-art & literature survey on SOTA approaches",
+    "Checking necessity of prior research..."
+  );
+
   if (ctx.research) {
     console.log(
       `[Phase: Research] Resuming from recovered research artifact (${ctx.research.priorArt.length} prior art studies, ${ctx.research.sotaApproaches.length} SOTA approaches).`
     );
+    emitSubAgentFinish(
+      ctx,
+      "agent-research",
+      "Literature Researcher",
+      "Conduct prior-art & literature survey on SOTA approaches",
+      "completed",
+      `Resumed survey: ${ctx.research.priorArt.length} prior art studies, ${ctx.research.sotaApproaches.length} SOTA approaches.`,
+      { research: ctx.research }
+    );
+    emitPhaseChange(ctx, "completed", "Research phase recovered");
     return "SUCCESS";
   }
 
@@ -121,6 +216,16 @@ export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
 
   if (!isBacktrackToResearch && !decision.shouldResearch) {
     console.log(`[Phase: Research] Skipped on-demand: ${decision.reason}`);
+    emitSubAgentFinish(
+      ctx,
+      "agent-research",
+      "Literature Researcher",
+      "Conduct prior-art & literature survey on SOTA approaches",
+      "completed",
+      `Skipped: ${decision.reason}`,
+      { decision }
+    );
+    emitPhaseChange(ctx, "completed", "Research skipped on-demand");
     return "SUCCESS";
   }
 
@@ -131,6 +236,15 @@ export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   console.log(
     `[Phase: Research] Conducting literature & prior-art survey on SOTA approaches (${reasonMsg})...`
   );
+  emitSubAgentLog(
+    ctx,
+    "agent-research",
+    "Literature Researcher",
+    "Conduct prior-art & literature survey on SOTA approaches",
+    "thought",
+    `Conducting survey: ${reasonMsg}`
+  );
+
   ctx.research = await runResearchPhase(
     { goal: ctx.goal, repoPath: ctx.worktreeManager.repoRoot },
     ctx.codexManager
@@ -139,6 +253,16 @@ export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   console.log(
     `[Phase: Research] Completed survey with ${ctx.research.priorArt.length} prior art studies and ${ctx.research.sotaApproaches.length} SOTA approaches.`
   );
+  emitSubAgentFinish(
+    ctx,
+    "agent-research",
+    "Literature Researcher",
+    "Conduct prior-art & literature survey on SOTA approaches",
+    "completed",
+    `Survey completed: ${ctx.research.priorArt.length} prior art studies, ${ctx.research.sotaApproaches.length} SOTA approaches.`,
+    { research: ctx.research }
+  );
+  emitPhaseChange(ctx, "completed", `Research completed with ${ctx.research.sotaApproaches.length} SOTA approaches`);
   return "SUCCESS";
 }
 
@@ -149,8 +273,27 @@ export async function compactContextAction(ctx: HarnessContext): Promise<NodeSta
 
 export async function diagnoseAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Diagnose;
+  emitPhaseChange(ctx, "started", "Diagnosing root cause & formulating hypotheses");
+  emitSubAgentStart(
+    ctx,
+    "agent-architect",
+    "System Architect",
+    "Analyze root cause & formulate multi-level hypotheses across Intervention Ladder",
+    "Formulating architectural hypotheses..."
+  );
+
   if (ctx.diagnosis && ctx.diagnosis.candidates.length > 0) {
     console.log(`[Phase: Diagnose] Resuming from recovered diagnosis artifact (${ctx.diagnosis.candidates.length} candidates).`);
+    emitSubAgentFinish(
+      ctx,
+      "agent-architect",
+      "System Architect",
+      "Analyze root cause & formulate multi-level hypotheses across Intervention Ladder",
+      "completed",
+      `Resumed ${ctx.diagnosis.candidates.length} candidate hypotheses.`,
+      { diagnosis: ctx.diagnosis }
+    );
+    emitPhaseChange(ctx, "completed", "Diagnose phase recovered");
     return "SUCCESS";
   }
   console.log(`[Phase: Diagnose] Analyzing goal across Intervention Ladder informed by research...`);
@@ -159,6 +302,14 @@ export async function diagnoseAction(ctx: HarnessContext): Promise<NodeStatus> {
   const contextFeedback = ctx.compactor.buildDiagnosisPromptContext(ctx);
   if (contextFeedback) {
     console.log(`[Phase: Diagnose] Incorporating distilled feedback and constraints into diagnosis.`);
+    emitSubAgentLog(
+      ctx,
+      "agent-architect",
+      "System Architect",
+      "Analyze root cause & formulate multi-level hypotheses across Intervention Ladder",
+      "thought",
+      "Incorporating distilled feedback and constraints into prompt context."
+    );
   }
 
   ctx.diagnosis = await runArchitectPhase(
@@ -172,13 +323,44 @@ export async function diagnoseAction(ctx: HarnessContext): Promise<NodeStatus> {
   );
   await ctx.memoryManager.saveArtifact(ctx.runId, "diagnosis.json", ctx.diagnosis);
   console.log(`[Phase: Diagnose] Generated ${ctx.diagnosis.candidates.length} candidates.`);
+  
+  emitSubAgentFinish(
+    ctx,
+    "agent-architect",
+    "System Architect",
+    "Analyze root cause & formulate multi-level hypotheses across Intervention Ladder",
+    "completed",
+    `Generated ${ctx.diagnosis.candidates.length} candidates: ${ctx.diagnosis.candidates.map((c) => `${c.id} (${c.level})`).join(", ")}`,
+    {
+      rootCause: ctx.diagnosis.rootCause,
+      candidates: ctx.diagnosis.candidates,
+    }
+  );
+  emitPhaseChange(ctx, "completed", `Diagnose complete: ${ctx.diagnosis.candidates.length} candidates`);
   return "SUCCESS";
 }
 
 export async function diversityGateAction(ctx: HarnessContext): Promise<NodeStatus> {
-
   ctx.phase = Phase.DiversityGate;
+  emitPhaseChange(ctx, "started", "Verifying exploration radius & diversity");
+  emitSubAgentStart(
+    ctx,
+    "agent-diversity",
+    "Diversity Gatekeeper",
+    "Enforce multi-level exploration radius across Intervention Ladder",
+    "Checking candidate diversity..."
+  );
+
   if (!ctx.diagnosis || ctx.diagnosis.candidates.length === 0) {
+    emitSubAgentFinish(
+      ctx,
+      "agent-diversity",
+      "Diversity Gatekeeper",
+      "Enforce multi-level exploration radius across Intervention Ladder",
+      "failed",
+      "No candidates found for diversity check."
+    );
+    emitPhaseChange(ctx, "failed", "Diversity check failed");
     return "FAILURE";
   }
 
@@ -187,6 +369,16 @@ export async function diversityGateAction(ctx: HarnessContext): Promise<NodeStat
 
   if (evalResult.passed) {
     console.log(`[Phase: DiversityGate] ${evalResult.reason}`);
+    emitSubAgentFinish(
+      ctx,
+      "agent-diversity",
+      "Diversity Gatekeeper",
+      "Enforce multi-level exploration radius across Intervention Ladder",
+      "completed",
+      `Passed: ${evalResult.reason}`,
+      { evaluation: evalResult }
+    );
+    emitPhaseChange(ctx, "completed", "Diversity check passed");
     return "SUCCESS";
   }
 
@@ -197,6 +389,17 @@ export async function diversityGateAction(ctx: HarnessContext): Promise<NodeStat
   const reEval = evaluateDiversity(ctx.diagnosis.candidates);
   ctx.diversityEvaluation = reEval;
   console.log(`[Phase: DiversityGate] Diversity enforced: ${reEval.reason}`);
+
+  emitSubAgentFinish(
+    ctx,
+    "agent-diversity",
+    "Diversity Gatekeeper",
+    "Enforce multi-level exploration radius across Intervention Ladder",
+    "completed",
+    `Enforced: ${reEval.reason}`,
+    { evaluation: reEval }
+  );
+  emitPhaseChange(ctx, "completed", "Diversity enforced");
   return "SUCCESS";
 }
 
@@ -206,10 +409,29 @@ export async function falsifyAction(ctx: HarnessContext): Promise<NodeStatus> {
     return "FAILURE";
   }
   ctx.phase = Phase.Falsify;
+  emitPhaseChange(ctx, "started", "Subjecting candidates to counter-argument scrutiny");
+  emitSubAgentStart(
+    ctx,
+    "agent-falsifier",
+    "Falsification Adversary",
+    "Subject candidate hypotheses to counter-arguments and adversarial tests",
+    "Scrutinizing candidate hypotheses..."
+  );
+
   if (ctx.falsifiedCandidates && ctx.falsifiedCandidates.length > 0) {
     console.log(
       `[Phase: Falsify] Resuming from recovered falsification artifact (${ctx.falsifiedCandidates.length} survivors).`
     );
+    emitSubAgentFinish(
+      ctx,
+      "agent-falsifier",
+      "Falsification Adversary",
+      "Subject candidate hypotheses to counter-arguments and adversarial tests",
+      "completed",
+      `Resumed: ${ctx.falsifiedCandidates.length} survivor(s).`,
+      { survivors: ctx.falsifiedCandidates }
+    );
+    emitPhaseChange(ctx, "completed", "Falsify phase recovered");
     return "SUCCESS";
   }
   console.log(`[Phase: Falsify] Subjecting candidates to rigorous counter-argument scrutiny...`);
@@ -237,9 +459,29 @@ export async function falsifyAction(ctx: HarnessContext): Promise<NodeStatus> {
   if (ctx.falsifiedCandidates.length === 0) {
     console.warn("[Phase: Falsify] No candidates survived falsification review.");
     ctx.rejectionFeedbacks.push("All proposed candidates were falsified during counter-argument scrutiny.");
+    emitSubAgentFinish(
+      ctx,
+      "agent-falsifier",
+      "Falsification Adversary",
+      "Subject candidate hypotheses to counter-arguments and adversarial tests",
+      "failed",
+      "All proposed candidates were falsified during scrutiny.",
+      { reviews }
+    );
+    emitPhaseChange(ctx, "failed", "All candidates falsified");
     return "FAILURE";
   }
 
+  emitSubAgentFinish(
+    ctx,
+    "agent-falsifier",
+    "Falsification Adversary",
+    "Subject candidate hypotheses to counter-arguments and adversarial tests",
+    "completed",
+    `${ctx.falsifiedCandidates.length} candidate(s) survived for implementation: ${ctx.falsifiedCandidates.map((c) => c.id).join(", ")}`,
+    { survivors: ctx.falsifiedCandidates, reviews }
+  );
+  emitPhaseChange(ctx, "completed", `${ctx.falsifiedCandidates.length} candidate(s) survived`);
   return "SUCCESS";
 }
 
@@ -249,6 +491,7 @@ export async function fastImplementAction(ctx: HarnessContext): Promise<NodeStat
   }
 
   ctx.phase = Phase.Implement;
+  emitPhaseChange(ctx, "started", "Spawning single localized worktree for fast path execution");
   console.log(`[Phase: Implement (FastPath)] Spawning single localized worktree for fast path execution...`);
 
   const fastCandidate: CandidateHypothesis = {
@@ -269,16 +512,20 @@ export async function fastImplementAction(ctx: HarnessContext): Promise<NodeStat
     worktreeManager: ctx.worktreeManager,
     codexManager: ctx.codexManager,
     runId: ctx.runId,
+    eventBus: ctx.eventBus,
   });
 
+  emitPhaseChange(ctx, "completed", "FastPath implementation completed");
   return "SUCCESS";
 }
 
 
 export async function implementAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Implement;
+  emitPhaseChange(ctx, "started", "Spawning isolated worktrees for candidate solutions");
   const rawCandidates = ctx.falsifiedCandidates ?? ctx.diagnosis?.candidates ?? [];
   if (rawCandidates.length === 0) {
+    emitPhaseChange(ctx, "failed", "No candidates available for implementation");
     return "FAILURE";
   }
 
@@ -289,6 +536,7 @@ export async function implementAction(ctx: HarnessContext): Promise<NodeStatus> 
     console.warn(`[BT:Budget] Exploration halted by budget limit: ${budgetStatus.reason}`);
     ctx.unresolved = true;
     ctx.unresolvedReason = budgetStatus.reason;
+    emitPhaseChange(ctx, "failed", `Budget limit: ${budgetStatus.reason}`);
     return "FAILURE";
   }
 
@@ -306,10 +554,12 @@ export async function implementAction(ctx: HarnessContext): Promise<NodeStatus> 
     worktreeManager: ctx.worktreeManager,
     codexManager: ctx.codexManager,
     runId: ctx.runId,
+    eventBus: ctx.eventBus,
   });
 
   await ctx.memoryManager.saveArtifact(ctx.runId, "implementations.json", ctx.implementations);
   console.log(`[Phase: Implement] Finished implementations in isolated worktrees.`);
+  emitPhaseChange(ctx, "completed", `Implemented ${ctx.implementations.length} candidate(s)`);
   return "SUCCESS";
 }
 
@@ -317,6 +567,15 @@ import { compareWithPareto } from "../evaluator/pareto.js";
 
 export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Verify;
+  emitPhaseChange(ctx, "started", "Evaluating candidates with test suites & Hard Gates");
+  emitSubAgentStart(
+    ctx,
+    "agent-evaluator",
+    "Objective Evaluator",
+    "Execute objective test suites, measure Hard Gates, soft metrics & regressions",
+    "Evaluating baseline and worktree implementations..."
+  );
+
   console.log(`[Phase: Verify] Independently evaluating each worktree candidate with objective test suites...`);
   ctx.verifications = [];
 
@@ -340,6 +599,15 @@ export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
   console.log(
     `  - Candidate 0 [Baseline main]: hardGates=${baselineResult.hardGates.passedAll ? "PASS" : "FAIL"}, passed=${baselineResult.tests.passed}, failed=${baselineResult.tests.failed}`
   );
+  emitSubAgentLog(
+    ctx,
+    "agent-evaluator",
+    "Objective Evaluator",
+    "Execute objective test suites, measure Hard Gates, soft metrics & regressions",
+    "tool",
+    `Baseline [main]: HardGates=${baselineResult.hardGates.passedAll ? "PASS" : "FAIL"}, tests=${baselineResult.tests.passed}/${baselineResult.tests.passed + baselineResult.tests.failed}`,
+    { baseline: baselineResult }
+  );
 
   // 2. Evaluate all worktree candidates
   for (const impl of ctx.implementations) {
@@ -354,6 +622,15 @@ export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
     ctx.verifications.push(result);
     console.log(
       `  - Candidate ${impl.candidateId} (${impl.level}): hardGates=${result.hardGates.passedAll ? "PASS" : "FAIL"}, passed=${result.tests.passed}, failed=${result.tests.failed}, lines=+${result.softMetrics.addedLines}/-${result.softMetrics.deletedLines}`
+    );
+    emitSubAgentLog(
+      ctx,
+      "agent-evaluator",
+      "Objective Evaluator",
+      "Execute objective test suites, measure Hard Gates, soft metrics & regressions",
+      "result",
+      `Candidate ${impl.candidateId}: HardGates=${result.hardGates.passedAll ? "PASS" : "FAIL"}, Score=${result.score.toFixed(2)}, lines=+${result.softMetrics.addedLines}/-${result.softMetrics.deletedLines}`,
+      { verification: result }
     );
   }
 
@@ -373,11 +650,31 @@ export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
     baseline: ctx.baselineVerification,
     candidates: ctx.verifications,
   });
+
+  emitSubAgentFinish(
+    ctx,
+    "agent-evaluator",
+    "Objective Evaluator",
+    "Execute objective test suites, measure Hard Gates, soft metrics & regressions",
+    "completed",
+    `Evaluated baseline and ${ctx.verifications.length} candidate(s).`,
+    { verifications: ctx.verifications }
+  );
+  emitPhaseChange(ctx, "completed", `Verified ${ctx.verifications.length} candidate(s)`);
   return "SUCCESS";
 }
 
 export async function compareAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Compare;
+  emitPhaseChange(ctx, "started", "Ranking candidates via Pareto dominance & Hard Gates");
+  emitSubAgentStart(
+    ctx,
+    "agent-pareto",
+    "Pareto Frontier Selector",
+    "Perform Hard-Gate filtering and Pareto / Lexicographic multi-objective comparison",
+    "Ranking candidates..."
+  );
+
   console.log(`[Phase: Compare] Performing Hard-Gate filtering and Pareto / Lexicographic comparison...`);
 
   const candidatesWithImpl = ctx.implementations
@@ -444,10 +741,31 @@ export async function compareAction(ctx: HarnessContext): Promise<NodeStatus> {
       `[Phase: Compare] ${pareto.summary} Leading candidate: '${ctx.winner.implementation.candidateId}' (${ctx.winner.implementation.level})`
     );
     await ctx.memoryManager.saveArtifact(ctx.runId, "pareto-ranking.json", pareto);
+    
+    emitSubAgentFinish(
+      ctx,
+      "agent-pareto",
+      "Pareto Frontier Selector",
+      "Perform Hard-Gate filtering and Pareto / Lexicographic multi-objective comparison",
+      "completed",
+      `Winner identified: '${ctx.winner.implementation.candidateId}' (${ctx.winner.implementation.level}) score: ${ctx.winner.verification.score.toFixed(2)}`,
+      { winner: ctx.winner, pareto }
+    );
+    emitPhaseChange(ctx, "completed", `Winner: ${ctx.winner.implementation.candidateId}`);
     return "SUCCESS";
   } else {
     console.log(`[Phase: Compare] No candidate passed Hard Gates or outperformed baseline.`);
     ctx.rejectionFeedbacks.push("No candidate implementation cleared Hard Gates or improved upon baseline.");
+    emitSubAgentFinish(
+      ctx,
+      "agent-pareto",
+      "Pareto Frontier Selector",
+      "Perform Hard-Gate filtering and Pareto / Lexicographic multi-objective comparison",
+      "failed",
+      "No candidate passed Hard Gates or outperformed baseline.",
+      { pareto }
+    );
+    emitPhaseChange(ctx, "failed", "No candidate cleared Hard Gates");
     return "FAILURE";
   }
 }
@@ -462,6 +780,14 @@ export async function cleanRoomReviewAction(ctx: HarnessContext): Promise<NodeSt
   }
 
   ctx.phase = Phase.Review;
+  emitPhaseChange(ctx, "started", "Launching clean-room blind audit");
+  emitSubAgentStart(
+    ctx,
+    "agent-reviewer",
+    "Clean-Room Auditor",
+    "Verify solution invariants without author bias or self-evaluation drift",
+    `Auditing anonymous candidate queue (depth: ${ctx.candidateQueue.length})...`
+  );
 
   // Process candidates in queue sequentially until one is APPROVED
   while (ctx.candidateQueue.length > 0) {
@@ -508,12 +834,33 @@ export async function cleanRoomReviewAction(ctx: HarnessContext): Promise<NodeSt
       } catch (err) {
         console.warn("[Phase: Review] Warning creating initial verified memory:", err);
       }
+
+      emitSubAgentFinish(
+        ctx,
+        "agent-reviewer",
+        "Clean-Room Auditor",
+        "Verify solution invariants without author bias or self-evaluation drift",
+        "completed",
+        `Candidate '${current.implementation.candidateId}' APPROVED: ${review.feedback}`,
+        { review }
+      );
+      emitPhaseChange(ctx, "completed", `Candidate '${current.implementation.candidateId}' approved`);
       return "SUCCESS";
     }
 
     console.warn(
       `[Phase: Review] Candidate '${current.implementation.candidateId}' REJECTED by clean-room audit:`,
       review.blockingIssues
+    );
+
+    emitSubAgentLog(
+      ctx,
+      "agent-reviewer",
+      "Clean-Room Auditor",
+      "Verify solution invariants without author bias or self-evaluation drift",
+      "result",
+      `Candidate '${current.implementation.candidateId}' REJECTED: ${review.blockingIssues.join("; ")}`,
+      { review }
     );
 
     // Record rejected candidate & feedback
@@ -549,6 +896,15 @@ export async function cleanRoomReviewAction(ctx: HarnessContext): Promise<NodeSt
   // All candidates in the queue were rejected
   console.warn(`[Phase: Review] All candidates in queue were rejected by clean-room audit.`);
   ctx.winner = undefined;
+  emitSubAgentFinish(
+    ctx,
+    "agent-reviewer",
+    "Clean-Room Auditor",
+    "Verify solution invariants without author bias or self-evaluation drift",
+    "failed",
+    "All candidates in queue were rejected by clean-room audit."
+  );
+  emitPhaseChange(ctx, "failed", "All candidates rejected by clean-room audit");
   return "FAILURE";
 }
 
@@ -574,7 +930,6 @@ export async function captureRejectionFeedbackAction(ctx: HarnessContext): Promi
   );
   console.log(`[BT:BacktrackRouter] Action: ${decision.recommendedAction}`);
 
-
   // Clean worktrees to prepare for retry
   try {
     await ctx.worktreeManager.cleanAllWorktrees();
@@ -592,6 +947,15 @@ export async function stageIntegrationAction(ctx: HarnessContext): Promise<NodeS
     return "FAILURE";
   }
   ctx.phase = Phase.Integrate;
+  emitPhaseChange(ctx, "started", "Locking and verifying multi-stage commit graph");
+  emitSubAgentStart(
+    ctx,
+    "agent-integrator",
+    "Worktree Integrator",
+    "Rebase, lock multi-stage commit graph and perform full integration verification",
+    `Integrating winner: '${ctx.winner.implementation.candidateId}'`
+  );
+
   ctx.compactor.compactForPhaseTransition(ctx, Phase.Integrate);
 
   const candidateBranch = ctx.winner.implementation.branchName;
@@ -642,6 +1006,16 @@ export async function stageIntegrationAction(ctx: HarnessContext): Promise<NodeS
       `[Phase: StageIntegration] Full Integration Verification FAILED on SHA ${integrationSha}:`,
       integrationResult.hardGates.failureReasons
     );
+    emitSubAgentFinish(
+      ctx,
+      "agent-integrator",
+      "Worktree Integrator",
+      "Rebase, lock multi-stage commit graph and perform full integration verification",
+      "failed",
+      `Integration verification failed: ${integrationResult.hardGates.failureReasons.join("; ")}`,
+      { failureReasons: integrationResult.hardGates.failureReasons }
+    );
+    emitPhaseChange(ctx, "failed", "Integration verification failed");
     return "FAILURE";
   }
 
@@ -701,6 +1075,17 @@ export async function stageIntegrationAction(ctx: HarnessContext): Promise<NodeS
 
   console.log(`[Phase: StageIntegration] Cleaning up transient worktrees...`);
   await ctx.worktreeManager.cleanAllWorktrees();
+
+  emitSubAgentFinish(
+    ctx,
+    "agent-integrator",
+    "Worktree Integrator",
+    "Rebase, lock multi-stage commit graph and perform full integration verification",
+    "completed",
+    `Integration verified. Locked SHA: ${verifiedHeadSha}`,
+    { commitGraph: ctx.commitGraph }
+  );
+  emitPhaseChange(ctx, "completed", "Integration verified and locked");
   return "SUCCESS";
 }
 
@@ -710,6 +1095,14 @@ export const integrateAction = stageIntegrationAction;
 export async function publishAction(ctx: HarnessContext): Promise<NodeStatus> {
   if (!ctx.winner) return "FAILURE";
   ctx.phase = Phase.Publish;
+  emitPhaseChange(ctx, "started", "Publishing verified candidate via GitHub PR");
+  emitSubAgentStart(
+    ctx,
+    "agent-publisher",
+    "GitHub PR Broker",
+    "Reconcile PR and enforce remote SHA invariant",
+    "Publishing pull request..."
+  );
 
   const verifiedHeadSha = ctx.commitGraph?.verifiedHeadSha ?? ctx.verifiedCommitSha;
 
@@ -751,11 +1144,30 @@ export async function publishAction(ctx: HarnessContext): Promise<NodeStatus> {
     }
   }
 
+  emitSubAgentFinish(
+    ctx,
+    "agent-publisher",
+    "GitHub PR Broker",
+    "Reconcile PR and enforce remote SHA invariant",
+    "completed",
+    `Pull Request published: ${pr.url}`,
+    { prUrl: pr.url, headSha: pr.headSha }
+  );
+  emitPhaseChange(ctx, "completed", `PR published: ${pr.url}`);
   return "SUCCESS";
 }
 
 export async function learnAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Learn;
+  emitPhaseChange(ctx, "started", "Crystallizing durable memory, skills & ADR");
+  emitSubAgentStart(
+    ctx,
+    "agent-learner",
+    "Memory & Skill Crystallizer",
+    "Synthesize ADR, persist verified memories, and crystallize procedural skills",
+    "Recording Architecture Decision Record and updating SQLite FTS5..."
+  );
+
   if (ctx.winner) {
     console.log(`[Phase: Learn] Recording Architecture Decision Record (ADR) in repository...`);
     const contextText = ctx.research?.problemClassification
@@ -842,6 +1254,21 @@ export async function learnAction(ctx: HarnessContext): Promise<NodeStatus> {
     distilledLessonCount: ctx.distilledLessons?.length ?? 0,
     finishedAt: new Date().toISOString(),
   });
+
+  emitSubAgentFinish(
+    ctx,
+    "agent-learner",
+    "Memory & Skill Crystallizer",
+    "Synthesize ADR, persist verified memories, and crystallize procedural skills",
+    "completed",
+    `ADR saved: ${ctx.adrFilename || "none"}. Trajectory exported.`,
+    {
+      adrFilename: ctx.adrFilename,
+      crystallizedSkill: ctx.crystallizedSkill?.id,
+      verifiedMemory: ctx.verifiedMemory?.id,
+    }
+  );
+  emitPhaseChange(ctx, "completed", "Run completed and lessons learned");
 
   ctx.phase = Phase.Finished;
   ctx.finished = true;

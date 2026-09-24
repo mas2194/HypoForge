@@ -8,6 +8,7 @@
     "build": "tsc",
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts",
+    "server": "tsx src/main.ts --server",
     "test": "vitest run --fileParallelism=false",
     "test:watch": "vitest --fileParallelism=false",
     "lint": "tsc --noEmit"

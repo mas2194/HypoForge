@@ -113,10 +113,12 @@ describe("Codex Configuration & Resolution", () => {
     );
 
     const loaded = loadCachedModels(fakeCachePath);
-    expect(loaded.length).toBe(1);
-    expect(loaded[0].slug).toBe("custom-test-model");
-    expect(loaded[0].displayName).toBe("Custom Test Model");
-    expect(loaded[0].defaultReasoningLevel).toBe("low");
+    expect(loaded.some((m) => m.slug === "custom-test-model")).toBe(true);
+    const custom = loaded.find((m) => m.slug === "custom-test-model")!;
+    expect(custom.displayName).toBe("Custom Test Model");
+    expect(custom.defaultReasoningLevel).toBe("low");
+    expect(loaded.some((m) => m.slug === "gpt-6-luna")).toBe(true);
+    expect(loaded.some((m) => m.slug === "o3-mini")).toBe(true);
 
     // Non-existent cache falls back to built-ins
     const fallback = loadCachedModels(path.join(tempDir, "non_existent.json"));

@@ -19,6 +19,7 @@ import type { ResearchRoutingDecision } from "../phases/research-router.js";
 import type { TriageDecision } from "../phases/triage.js";
 import type { ExecutionJournal } from "../journal/execution-journal.js";
 import type { AdaptiveHypothesisScheduler } from "../phases/adaptive-scheduler.js";
+import type { HarnessEventBus } from "../server/event-bus.js";
 
 export enum Phase {
   Inspect = "Inspect",
@@ -106,6 +107,7 @@ export interface HarnessContext {
   budgetTracker: BudgetTracker;
   executionJournal: ExecutionJournal;
   evidenceStore: StructuredEvidenceStore;
+  eventBus?: HarnessEventBus;
 
   // Transactional Exploration Attempts
   currentAttempt: AttemptContext;

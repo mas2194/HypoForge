@@ -15,6 +15,7 @@ import { BudgetTracker, type BudgetLimits } from "../budget/tracker.js";
 
 import { ExecutionJournal } from "../journal/execution-journal.js";
 import { reconcileRun, applyReconciledStateToContext } from "../journal/reconciliation.js";
+import type { HarnessEventBus } from "../server/event-bus.js";
 
 export interface OrchestratorOptions {
   goal: string;
@@ -31,6 +32,7 @@ export interface OrchestratorOptions {
   enableTracing?: boolean;
   dbPath?: string;
   resumeRunId?: string;
+  eventBus?: HarnessEventBus;
 }
 
 export class HarnessOrchestrator {
@@ -124,6 +126,7 @@ export class HarnessOrchestrator {
       distilledLessons: [],
       compactionRecords: [],
       traceLog: [],
+      eventBus: options.eventBus,
     };
 
     this.tree = buildHarnessBehaviorTree({
@@ -145,6 +148,11 @@ export class HarnessOrchestrator {
       if (reconciled.nextPhase === Phase.Finished) {
         this.context.finished = true;
         this.context.phase = Phase.Finished;
+        this.context.eventBus?.emitFinish({
+          runId: this.context.runId,
+          phase: Phase.Finished,
+          summary: "Run resumed and completed.",
+        });
         return this.context;
       }
     }
@@ -156,6 +164,26 @@ export class HarnessOrchestrator {
     if (status === "FAILURE") {
       this.context.error = "Execution halted: Behavior Tree returned FAILURE";
     }
+
+    const winnerSummary = this.context.winner
+      ? `Winner: ${this.context.winner.implementation.candidateId} (${this.context.winner.implementation.level}) with score ${this.context.winner.verification.score.toFixed(2)}`
+      : "No winning candidate integrated.";
+
+    this.context.eventBus?.emitFinish({
+      runId: this.context.runId,
+      phase: Phase.Finished,
+      winner: this.context.winner
+        ? {
+            candidateId: this.context.winner.implementation.candidateId,
+            level: this.context.winner.implementation.level,
+            score: this.context.winner.verification.score,
+          }
+        : undefined,
+      error: this.context.error,
+      unresolved: this.context.unresolved,
+      unresolvedReason: this.context.unresolvedReason,
+      summary: winnerSummary,
+    });
 
     return this.context;
   }

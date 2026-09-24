@@ -412,6 +412,29 @@ Reference and load workspace files directly into your goal context using `@`:
   - Press **Tab** (or **Down** / **Up** / **Shift+Tab**) to cycle through candidates and select one.
   - Press **Enter** or **Space** to confirm the selection and continue typing your prompt (**Esc** to dismiss).
 
+#### Web UI Server Mode (`--server` / `-s`)
+
+Launch the harness with `--server` (or `-s`) to interact with the system via a browser-based Web UI:
+
+```bash
+# Start Web UI Server (default port: 3000)
+npm run server
+# or:
+npx tsx src/main.ts --server
+
+# Custom port, model, and reasoning effort
+npx tsx src/main.ts --server --port 8080 --model o3-mini --effort high
+```
+
+Open `http://localhost:3000` in your browser for a split-screen dashboard:
+- **Left Pane (Model Conversation)**:
+  - Chat interface to submit engineering goals, converse with the agent, and inspect progress.
+  - Full support for `@<file>` auto-completion dropdown and slash commands (`/model`, `/effort`, `/help`).
+  - Dynamic model and reasoning effort switcher in the top bar.
+- **Right Pane (Harness Stage Graph & Codex Sub-Agent Activity)**:
+  - **Harness Stage Pipeline Graph**: Real-time visualization of pipeline stages (`Inspect` → `Triage` → `Explore` → `Integrate` → `Publish` → `Learn`) with live status indicators and interactive phase filtering.
+  - **Codex Sub-Agent Activity Panel**: Real-time streaming cards for all sub-agents (`Architect Agent`, `Falsification Adversary`, worktree `Workers`, `Objective Evaluator`, `Clean-Room Auditor`, etc.) showing reasoning, tool calls, objective test metrics, and terminal logs.
+
 During execution, `my_harness` will:
 1. Inspect the repository AST, topology, and invariant contracts.
 2. Formulate diagnostic hypotheses across multiple intervention levels.
