@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+
+# Git worktrees created during parallel experiments
+worktrees/
+
+# OS metadata
+.DS_Store
+Thumbs.db
