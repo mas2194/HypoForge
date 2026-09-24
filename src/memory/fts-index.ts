@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import fs from "node:fs";
 
-export type MemoryType = "adr" | "rejection" | "falsification" | "skill" | "architecture_rule" | "distilled_lesson" | "verified_claim";
+export type MemoryType = "adr" | "rejection" | "falsification" | "skill" | "architecture_rule" | "distilled_lesson" | "verified_claim" | "negative_constraint";
 
 export interface MemoryItem {
   id: string;

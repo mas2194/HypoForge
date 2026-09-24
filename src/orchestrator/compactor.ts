@@ -335,25 +335,43 @@ export class ContextCompactor {
   /**
    * Builds a token-efficient, high-signal prompt projection for the Architect/Diagnosis phase.
    * Replaces unstructured concatenations with categorized constraints and invariants.
+   * Strictly separates Positive Memories (ADRs/verified claims) from Negative Constraints (DO NOT rules).
    */
   buildDiagnosisPromptContext(ctx: HarnessContext): string | undefined {
     const sections: string[] = [];
 
-    // 1. Distilled Lessons and Negative Constraints from previous attempts
+    // 1. Distilled Lessons and Negative Constraints from previous attempts & historical memories
     const lessons = ctx.distilledLessons ?? [];
-    if (lessons.length > 0 || ctx.rejectionFeedbacks.length > 0) {
-      const feedbackLines = lessons.length > 0
-        ? lessons.map((l) => `- [Iteration ${l.iteration} / ${l.source}] ${l.lesson}`)
-        : ctx.rejectionFeedbacks.map((f, i) => `- Issue ${i + 1}: ${f}`);
+    const historicalNegatives = (ctx.recalledMemories ?? [])
+      .filter((m) => m.type === "negative_constraint" || m.type === "rejection" || m.type === "distilled_lesson");
 
+    const negativeLines: string[] = [];
+
+    // Add historical negative constraints from past runs
+    for (const neg of historicalNegatives) {
+      negativeLines.push(`- [Historical Negative / ${neg.type}] DO NOT: ${neg.content.slice(0, 180)} (Ref: ${neg.title})`);
+    }
+
+    // Add current run distilled lessons and feedbacks
+    if (lessons.length > 0) {
+      for (const l of lessons) {
+        negativeLines.push(`- [Iteration ${l.iteration} / ${l.source}] ${l.lesson}${l.violatedInvariant ? ` (Invariant: ${l.violatedInvariant})` : ""}`);
+      }
+    } else if (ctx.rejectionFeedbacks.length > 0) {
+      ctx.rejectionFeedbacks.forEach((f, i) => negativeLines.push(`- [Issue ${i + 1}] ${f}`));
+    }
+
+    if (negativeLines.length > 0) {
       sections.push(
-        `CRITICAL NEGATIVE CONSTRAINTS (DO NOT REPEAT PREVIOUS ARCHITECTURAL FLAWS):\n${feedbackLines.join("\n")}`
+        `CRITICAL NEGATIVE CONSTRAINTS (DO NOT REPEAT PREVIOUS ARCHITECTURAL FLAWS / ANTI-PATTERNS):\n${negativeLines.join("\n")}`
       );
     }
 
-    // 2. Historical ADRs and Invariants from Durable Memory (compact title & excerpt)
-    if (ctx.recalledMemories && ctx.recalledMemories.length > 0) {
-      const memoryLines = ctx.recalledMemories
+    // 2. Positive Memories: Historical ADRs, verified claims, and established architecture rules
+    const positiveMemories = (ctx.recalledMemories ?? [])
+      .filter((m) => m.type === "adr" || m.type === "verified_claim" || m.type === "architecture_rule");
+    if (positiveMemories.length > 0) {
+      const memoryLines = positiveMemories
         .slice(0, 3)
         .map((m) => `- [${m.type.toUpperCase()}] ${m.title}: ${m.content.slice(0, 160)}...`);
       sections.push(`HISTORICAL ARCHITECTURAL DECISIONS & INVARIANTS:\n${memoryLines.join("\n")}`);

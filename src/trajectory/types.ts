@@ -1,11 +1,21 @@
+export type CandidateDisposition =
+  | "WINNER"
+  | "REJECTED_INVALID"     // Test failures, type errors, build failure (Hard Negative)
+  | "REJECTED_REGRESSION"  // Broke existing tests or introduced regressions (Highest-weight Hard Negative)
+  | "VALID_BUT_DOMINATED"  // Passed hard gates but dominated on Pareto/efficiency (Marginal Negative)
+  | "VALID_ALTERNATIVE";   // High quality/approved alternative (Excluded from DPO negatives)
+
 export interface CandidateTrajectoryRecord {
   candidateId: string;
   level: string | number;
   hypothesis: string;
   branchName: string;
+  disposition: CandidateDisposition;
   passedVerification: boolean;
   verificationScore: number;
+  evidenceStrength?: number;
   rejectionReason?: string;
+  failureClass?: string;
 }
 
 export type TrajectoryProvenance =
@@ -19,6 +29,7 @@ export interface PreferencePair {
   prompt: string;
   provenance: TrajectoryProvenance;
   confidenceWeight: number;
+  pairType: "HARD_NEGATIVE" | "MARGINAL_NEGATIVE";
   chosen: {
     candidateId: string;
     level: string | number;
@@ -31,6 +42,7 @@ export interface PreferencePair {
     level: string | number;
     hypothesis: string;
     score: number;
+    disposition: CandidateDisposition;
     rejectionReason: string;
   };
 }

@@ -117,6 +117,22 @@ ${consequences}
     });
   }
 
+  recordNegativeConstraint(
+    runId: string,
+    candidateId: string,
+    prohibitedPattern: string,
+    rationale: string
+  ): void {
+    this.ftsIndex.insert({
+      id: `negative:${runId}:${candidateId}:${Date.now()}`,
+      type: "negative_constraint",
+      title: `Prohibited pattern: ${prohibitedPattern.slice(0, 40)}`,
+      content: `DO NOT: ${prohibitedPattern}. Reason: ${rationale}`,
+      tags: "negative constraint anti-pattern prohibited",
+      runId,
+    });
+  }
+
   searchMemories(query: string, limit: number = 5): MemorySearchResult[] {
     return this.ftsIndex.search(query, limit);
   }

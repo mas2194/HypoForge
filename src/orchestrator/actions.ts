@@ -407,6 +407,7 @@ export async function compareAction(ctx: HarnessContext): Promise<NodeStatus> {
       deletedLines: 0,
       fileCount: 0,
       architecturalInterventionLevel: 0,
+      evidenceStrength: 1.0,
       confidenceScore: 1.0,
     },
     tests: { passed: 1, failed: 0, output: "", exitCode: 0, failingTestIds: [], passingTestIds: [] },
@@ -414,6 +415,14 @@ export async function compareAction(ctx: HarnessContext): Promise<NodeStatus> {
     acceptance: { tested: false, passed: true, verifiedCriteria: [], missingCriteria: [] },
     adversarial: { tested: false, passed: true, scenarios: {}, failureReasons: [] },
     metamorphic: { tested: false, passed: true, properties: {}, failureReasons: [] },
+    oracleBreakdown: {
+      layer1BaselinePassed: true,
+      layer2CandidateAuthoredPassed: true,
+      layer2CandidateAuthoredCount: 0,
+      layer3AdversarialPassed: true,
+      layer4MetamorphicPassed: true,
+      oracleIndependenceSatisfied: true,
+    },
     regressions: [],
     score: 100,
   };
@@ -518,6 +527,12 @@ export async function cleanRoomReviewAction(ctx: HarnessContext): Promise<NodeSt
         ctx.runId,
         current.implementation.candidateId,
         issue
+      );
+      ctx.memoryManager.recordNegativeConstraint(
+        ctx.runId,
+        current.implementation.candidateId,
+        issue,
+        `Clean-room review rejected candidate '${current.implementation.candidateId}' (Level: ${current.implementation.level})`
       );
     }
 

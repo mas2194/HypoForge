@@ -19,6 +19,7 @@ export const SoftMetricsSchema = z.object({
   deletedLines: z.number().default(0),
   fileCount: z.number().default(0),
   architecturalInterventionLevel: z.number().default(1),
+  evidenceStrength: z.number().default(1.0),
   confidenceScore: z.number().default(1.0),
 });
 
@@ -62,6 +63,17 @@ export const AdversarialResultSchema = z.object({
 
 export type AdversarialResult = z.infer<typeof AdversarialResultSchema>;
 
+export const OracleBreakdownSchema = z.object({
+  layer1BaselinePassed: z.boolean().default(true),
+  layer2CandidateAuthoredPassed: z.boolean().default(true),
+  layer2CandidateAuthoredCount: z.number().default(0),
+  layer3AdversarialPassed: z.boolean().default(true),
+  layer4MetamorphicPassed: z.boolean().default(true),
+  oracleIndependenceSatisfied: z.boolean().default(true),
+});
+
+export type OracleBreakdown = z.infer<typeof OracleBreakdownSchema>;
+
 export const VerificationResultSchema = z.object({
   candidateId: z.string(),
   isBaseline: z.boolean().default(false),
@@ -81,6 +93,7 @@ export const VerificationResultSchema = z.object({
     deletedLines: 0,
     fileCount: 0,
     architecturalInterventionLevel: 1,
+    evidenceStrength: 1.0,
     confidenceScore: 1.0,
   }),
   tests: z.object({
@@ -114,6 +127,14 @@ export const VerificationResultSchema = z.object({
     passed: true,
     properties: {},
     failureReasons: [],
+  }),
+  oracleBreakdown: OracleBreakdownSchema.default({
+    layer1BaselinePassed: true,
+    layer2CandidateAuthoredPassed: true,
+    layer2CandidateAuthoredCount: 0,
+    layer3AdversarialPassed: true,
+    layer4MetamorphicPassed: true,
+    oracleIndependenceSatisfied: true,
   }),
   benchmark: z
     .object({

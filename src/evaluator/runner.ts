@@ -99,6 +99,60 @@ function extractFailingTestIds(output: string): string[] {
   return ids;
 }
 
+export function computeEvidenceStrength(params: {
+  testsPassed: boolean;
+  testIntegrityPassed: boolean;
+  totalTests: number;
+  passedTests: number;
+  diagnosticErrorsCount: number;
+  regressionCount: number;
+  acceptanceTested: boolean;
+  acceptancePassed: boolean;
+  adversarialTested: boolean;
+  adversarialPassed: boolean;
+  metamorphicTested: boolean;
+  metamorphicPassed: boolean;
+  perfImprovementPercent: number;
+}): number {
+  if (!params.testsPassed || !params.testIntegrityPassed || params.regressionCount > 0) {
+    return 0.0;
+  }
+
+  // Base empirical strength for zero regressions and passing test suite
+  let strength = 0.50;
+
+  // Ratio of passed tests (up to 0.15)
+  const passRatio = params.totalTests > 0 ? params.passedTests / params.totalTests : 1.0;
+  strength += Math.min(0.15, passRatio * 0.15);
+
+  // Clean compiler/linter diagnostics (+0.10 if zero new diagnostic errors)
+  if (params.diagnosticErrorsCount === 0) {
+    strength += 0.10;
+  }
+
+  // Tier 2: Acceptance Oracle passed (+0.08)
+  if (params.acceptanceTested && params.acceptancePassed) {
+    strength += 0.08;
+  }
+
+  // Tier 3: Adversarial Oracle passed (+0.09)
+  if (params.adversarialTested && params.adversarialPassed) {
+    strength += 0.09;
+  }
+
+  // Tier 4: Metamorphic & Invariant Oracle passed (+0.08)
+  if (params.metamorphicTested && params.metamorphicPassed) {
+    strength += 0.08;
+  }
+
+  // Measured performance gains (+up to 0.05)
+  if (params.perfImprovementPercent > 0) {
+    strength += Math.min(0.05, (params.perfImprovementPercent / 100) * 0.05);
+  }
+
+  return Math.min(1.0, Math.max(0.0, Math.round(strength * 100) / 100));
+}
+
 export class Evaluator {
   /**
    * Evaluates Candidate 0 (Baseline on main branch).
@@ -139,6 +193,7 @@ export class Evaluator {
       failureReasons: regressions,
     };
 
+    const evidenceStrength = testsPassed ? 1.0 : 0.0;
     const softMetrics = {
       performanceImprovementPercent: 0,
       complexityDelta: 0,
@@ -146,7 +201,8 @@ export class Evaluator {
       deletedLines: 0,
       fileCount: 0,
       architecturalInterventionLevel: 0, // Baseline has 0 intervention
-      confidenceScore: testsPassed ? 1.0 : 0.0,
+      evidenceStrength,
+      confidenceScore: evidenceStrength,
     };
 
     return VerificationResultSchema.parse({
@@ -154,6 +210,14 @@ export class Evaluator {
       isBaseline: true,
       hardGates,
       softMetrics,
+      oracleBreakdown: {
+        layer1BaselinePassed: testsPassed,
+        layer2CandidateAuthoredPassed: true,
+        layer2CandidateAuthoredCount: 0,
+        layer3AdversarialPassed: true,
+        layer4MetamorphicPassed: true,
+        oracleIndependenceSatisfied: true,
+      },
       tests: {
         passed,
         failed,
@@ -288,6 +352,20 @@ export class Evaluator {
       regressions.push(...metamorphic.failureReasons);
     }
 
+    // 3.7 Oracle Independence: detect candidate-authored tests vs baseline
+    let candidateAuthoredTestCount = 0;
+    try {
+      const { stdout: changedFiles } = await execAsync(
+        `git diff --name-only ${baseBranch}...HEAD`,
+        { cwd: worktreePath }
+      );
+      const testFileRegex = /(\.test\.|\.spec\.|__tests__\/|tests\/)/i;
+      const testFiles = changedFiles.split("\n").filter((f) => testFileRegex.test(f.trim()));
+      candidateAuthoredTestCount = testFiles.length;
+    } catch {
+      // non-fatal
+    }
+
     // 4. Hard Gates Check
     const diagnostics = extractDiagnostics(testOutput);
     const testsPassed = failed === 0 && passed > 0;
@@ -305,7 +383,39 @@ export class Evaluator {
       failureReasons: regressions,
     };
 
-    // 5. Soft Metrics Profile
+    const layer1BaselinePassed = testsPassed;
+    const layer2CandidateAuthoredPassed = candidateAuthoredTestCount > 0 ? testsPassed : true;
+    const layer3AdversarialPassed = adversarial.passed;
+    const layer4MetamorphicPassed = metamorphic.passed;
+    const oracleIndependenceSatisfied = integrityResult.passed && layer1BaselinePassed && layer3AdversarialPassed && layer4MetamorphicPassed;
+
+    const oracleBreakdown = {
+      layer1BaselinePassed,
+      layer2CandidateAuthoredPassed,
+      layer2CandidateAuthoredCount: candidateAuthoredTestCount,
+      layer3AdversarialPassed,
+      layer4MetamorphicPassed,
+      oracleIndependenceSatisfied,
+    };
+
+    // 5. Objective Empirical Evidence Strength Calculation
+    const evidenceStrength = computeEvidenceStrength({
+      testsPassed,
+      testIntegrityPassed,
+      totalTests: passed + failed,
+      passedTests: passed,
+      diagnosticErrorsCount: diagnostics.typeErrors.length + diagnostics.lintErrors.length,
+      regressionCount: regressions.length,
+      acceptanceTested: acceptance.tested,
+      acceptancePassed: acceptance.passed,
+      adversarialTested: adversarial.tested,
+      adversarialPassed: adversarial.passed,
+      metamorphicTested: metamorphic.tested,
+      metamorphicPassed: metamorphic.passed,
+      perfImprovementPercent: perfImprovement,
+    });
+
+    // 6. Soft Metrics Profile
     const softMetrics = {
       performanceImprovementPercent: perfImprovement,
       complexityDelta: addedLines + deletedLines,
@@ -313,7 +423,8 @@ export class Evaluator {
       deletedLines,
       fileCount,
       architecturalInterventionLevel: interventionLevel,
-      confidenceScore: testsPassed ? 1.0 : 0.0,
+      evidenceStrength,
+      confidenceScore: evidenceStrength,
     };
 
     // Legacy scalar score (preserved for backward-compatibility)
@@ -334,6 +445,7 @@ export class Evaluator {
       isBaseline: false,
       hardGates,
       softMetrics,
+      oracleBreakdown,
       tests: {
         passed,
         failed,

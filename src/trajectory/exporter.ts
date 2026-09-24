@@ -1,6 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { RunTrajectory, PreferencePair, CandidateTrajectoryRecord, TrajectoryProvenance } from "./types.js";
+import type {
+  RunTrajectory,
+  PreferencePair,
+  CandidateTrajectoryRecord,
+  TrajectoryProvenance,
+  CandidateDisposition,
+} from "./types.js";
 import type { HarnessContext } from "../orchestrator/context.js";
 
 /**
@@ -12,6 +18,7 @@ export function computeDPOConfidenceWeight(params: {
   tier3MetamorphicPassed?: boolean;
   scoreDelta?: number;
   stableDays?: number;
+  isHardNegative?: boolean;
 }): number {
   const baseMap: Record<TrajectoryProvenance, number> = {
     self_reviewed: 0.15,
@@ -29,6 +36,10 @@ export function computeDPOConfidenceWeight(params: {
 
   if (params.scoreDelta && params.scoreDelta > 30) {
     weight += 0.05;
+  }
+
+  if (params.isHardNegative) {
+    weight += 0.10;
   }
 
   if (params.stableDays && params.stableDays >= 7) {
@@ -53,16 +64,53 @@ export class TrajectoryExporter {
       const isWinner = ctx.winner?.implementation.candidateId === impl.candidateId;
       const diagCand = ctx.diagnosis?.candidates.find((c) => c.id === impl.candidateId);
       const hypothesis = diagCand?.hypothesis ?? "No hypothesis recorded";
-      let rejectionReason: string | undefined;
+      const rejectionRecord = ctx.rejectedCandidates?.find(
+        (r) => r.candidate.implementation.candidateId === impl.candidateId
+      );
 
-      if (!isWinner) {
-        if (ver && ver.tests.failed > 0) {
-          rejectionReason = `Tests failed: ${ver.tests.failed} test(s) failed`;
-        } else if (ver && ctx.winner && ver.score < ctx.winner.verification.score) {
+      let disposition: CandidateDisposition;
+      let rejectionReason: string | undefined;
+      let failureClass: string | undefined;
+
+      const passedHardGates = ver?.hardGates
+        ? ver.hardGates.passedAll
+        : ver?.tests
+        ? ver.tests.failed === 0
+        : false;
+
+      if (isWinner) {
+        disposition = "WINNER";
+      } else if (rejectionRecord) {
+        // Clean-room audit specifically rejected this candidate with blocking issues
+        rejectionReason = `Clean-room audit rejected: ${rejectionRecord.blockingIssues.join("; ")}`;
+        failureClass = ctx.review?.failureClass;
+        disposition = rejectionRecord.blockingIssues.some((b) => /regression|broken/i.test(b))
+          ? "REJECTED_REGRESSION"
+          : "REJECTED_INVALID";
+      } else if (ver && (!passedHardGates || ver.tests.failed > 0)) {
+        if (ver.regressions?.length > 0 || (ver.tests.failingTestIds && ver.tests.failingTestIds.length > 0)) {
+          disposition = "REJECTED_REGRESSION";
+          rejectionReason = `Regressions detected: ${ver.regressions?.join("; ") || `${ver.tests.failed} test(s) failed`}`;
+        } else {
+          disposition = "REJECTED_INVALID";
+          rejectionReason = `Hard gates failed: ${ver.hardGates?.failureReasons?.join("; ") || "tests failed"}`;
+        }
+      } else if (ver && passedHardGates) {
+        // Passed hard gates, not rejected by audit
+        const isQueued = ctx.candidateQueue?.some((q) => q.implementation.candidateId === impl.candidateId);
+        if (isQueued && ver.softMetrics?.evidenceStrength && ver.softMetrics.evidenceStrength >= 0.8) {
+          disposition = "VALID_ALTERNATIVE";
+          rejectionReason = "High-quality viable alternative (not chosen as primary winner)";
+        } else if (ctx.winner && ver.score < ctx.winner.verification.score) {
+          disposition = "VALID_BUT_DOMINATED";
           rejectionReason = `Lower verification score (${ver.score.toFixed(2)} vs ${ctx.winner.verification.score.toFixed(2)})`;
         } else {
-          rejectionReason = "Superseded by superior candidate during clean-room review";
+          disposition = "VALID_BUT_DOMINATED";
+          rejectionReason = "Passed hard gates but superseded by Pareto dominance / diff efficiency";
         }
+      } else {
+        disposition = "REJECTED_INVALID";
+        rejectionReason = "Implementation did not produce verifiable artifacts";
       }
 
       return {
@@ -70,9 +118,12 @@ export class TrajectoryExporter {
         level: impl.level,
         hypothesis,
         branchName: impl.branchName,
-        passedVerification: ver ? ver.tests.failed === 0 : false,
+        disposition,
+        passedVerification: ver ? ver.tests.failed === 0 && passedHardGates : false,
         verificationScore: ver?.score ?? 0,
+        evidenceStrength: ver?.softMetrics?.evidenceStrength,
         rejectionReason,
+        failureClass,
       };
     });
 
@@ -86,18 +137,33 @@ export class TrajectoryExporter {
 
       for (const cand of candidates) {
         if (cand.candidateId !== winner.implementation.candidateId) {
+          // CRITICAL SAFETY GUARD:
+          // Do NOT generate negative DPO preference pairs for VALID_ALTERNATIVE!
+          // Legitimate alternative solutions must not be penalized as false-negatives during model alignment.
+          if (cand.disposition === "VALID_ALTERNATIVE") {
+            continue;
+          }
+
           const scoreDelta = winner.verification.score - cand.verificationScore;
           const tier3Passed = winner.verification.metamorphic?.passed ?? true;
-          const confidenceWeight = computeDPOConfidenceWeight({
+          const isHardNegative = cand.disposition === "REJECTED_REGRESSION" || cand.disposition === "REJECTED_INVALID";
+          const rawWeight = computeDPOConfidenceWeight({
             provenance: "machine_verified",
             tier3MetamorphicPassed: tier3Passed,
             scoreDelta,
+            isHardNegative,
           });
+
+          // Soften marginal negative weights (VALID_BUT_DOMINATED) so they don't overpower hard bugs
+          const confidenceWeight = cand.disposition === "VALID_BUT_DOMINATED"
+            ? Math.round(rawWeight * 0.40 * 100) / 100
+            : rawWeight;
 
           preferencePairs.push({
             prompt: ctx.goal,
             provenance: "machine_verified",
             confidenceWeight,
+            pairType: isHardNegative ? "HARD_NEGATIVE" : "MARGINAL_NEGATIVE",
             chosen: {
               candidateId: winner.implementation.candidateId,
               level: winner.implementation.level,
@@ -110,6 +176,7 @@ export class TrajectoryExporter {
               level: cand.level,
               hypothesis: cand.hypothesis,
               score: cand.verificationScore,
+              disposition: cand.disposition,
               rejectionReason: cand.rejectionReason ?? "Candidate rejected by evidence comparison",
             },
           });
