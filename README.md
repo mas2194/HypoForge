@@ -371,7 +371,7 @@ HARNESS_TEST_COMMAND="npm test"
 Run the harness interactively or against a specific engineering objective:
 
 ```bash
-# Interactive mode (Enter: newline, Ctrl+Enter / Ctrl+D: submit)
+# Interactive mode (Enter: newline, Cmd+Enter [macOS] / Ctrl+Enter [Linux/Windows] / Ctrl+D: submit)
 npx tsx src/main.ts
 
 # Directly pass an objective

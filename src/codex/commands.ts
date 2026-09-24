@@ -208,6 +208,9 @@ export function handleStatusCommand(context: SlashCommandContext): SlashCommandR
  * Handles /help command.
  */
 export function handleHelpCommand(): SlashCommandResult {
+  const isMac = process.platform === "darwin";
+  const submitShortcut = isMac ? "Cmd+Enter" : "Ctrl+Enter";
+
   const lines = [
     "Available Commands:",
     "  /model [name|num]    View or switch the active Codex model",
@@ -218,7 +221,7 @@ export function handleHelpCommand(): SlashCommandResult {
     "",
     "To submit a multi-line goal prompt:",
     "  - Enter: new line",
-    "  - Ctrl+Enter or Ctrl+D: submit goal",
+    `  - ${submitShortcut} or Ctrl+D: submit goal`,
   ];
 
   return {

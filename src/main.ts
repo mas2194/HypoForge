@@ -40,11 +40,25 @@ async function promptUserInstruction(promptText: string): Promise<string> {
       }
     };
 
+    const isMac = process.platform === "darwin";
+
     const isSubmitKey = (str?: string, key?: readline.Key): boolean => {
       if (!key && !str) return false;
-      // Ctrl+D
+      // Universal EOF / submit
       if (key && key.ctrl && key.name === "d") return true;
-      // CSI u Ctrl+Enter: \x1b[13;5u or \x1b[10;5u
+
+      // macOS: Command+Enter (Meta/Super+Return)
+      if (isMac) {
+        if (key && key.meta && (key.name === "return" || key.name === "enter")) return true;
+        if (key && (key.sequence === "\x1b\r" || key.sequence === "\x1b\n")) return true;
+        if (str === "\x1b\r" || str === "\x1b\n") return true;
+        // CSI u Super/Cmd (modifier 9 or 8): \x1b[13;9u or \x1b[10;9u or \x1b[13;8u
+        if (key && (key.sequence === "\x1b[13;9u" || key.sequence === "\x1b[10;9u" || key.sequence === "\x1b[13;8u")) return true;
+        // XTerm modifyOtherKeys for Cmd/Meta
+        if (str && (str.includes("\x1b[27;9;13~") || str.includes("\x1b[27;8;13~"))) return true;
+      }
+
+      // Ctrl+Enter: \x1b[13;5u or \x1b[10;5u (also fallback on Mac)
       if (key && (key.sequence === "\x1b[13;5u" || key.sequence === "\x1b[10;5u")) return true;
       // XTerm modifyOtherKeys
       if (str && str.includes("\x1b[27;5;13~")) return true;
@@ -228,10 +242,13 @@ async function main() {
   console.log(`Active Model: ${currentModel} | Reasoning Effort: ${currentEffort}`);
   console.log("Tip: Use /model or /effort to configure, /help for all commands\n");
 
+  const isMac = process.platform === "darwin";
+  const submitShortcut = isMac ? "Cmd+Enter" : "Ctrl+Enter";
+
   // Interactive mode: wait for user instruction with multi-line support
   while (true) {
     const answer = await promptUserInstruction(
-      "Enter goal or command (Enter: newline | Ctrl+Enter or Ctrl+D: submit | '/exit': quit | '/help': commands):\n> "
+      `Enter goal or command (Enter: newline | ${submitShortcut} or Ctrl+D: submit | '/exit': quit | '/help': commands):\n> `
     );
     const trimmed = answer.trim();
 
