@@ -1,17 +1,22 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { FtsMemoryIndex, type MemorySearchResult } from "./fts-index.js";
 
 export interface DurableMemoryOptions {
   repoRoot?: string;
+  dbPath?: string;
 }
 
 export class DurableMemoryManager {
   readonly repoRoot: string;
   readonly baseDir: string;
+  readonly ftsIndex: FtsMemoryIndex;
 
   constructor(options: DurableMemoryOptions = {}) {
     this.repoRoot = path.resolve(options.repoRoot ?? process.cwd());
     this.baseDir = path.resolve(this.repoRoot, ".agent");
+    const dbPath = options.dbPath ?? path.resolve(this.baseDir, "memory.db");
+    this.ftsIndex = new FtsMemoryIndex(dbPath);
   }
 
   getRunDir(runId: string): string {
@@ -43,7 +48,8 @@ export class DurableMemoryManager {
     title: string,
     context: string,
     decision: string,
-    consequences: string
+    consequences: string,
+    runId?: string
   ): Promise<string> {
     const decisionsDir = path.resolve(this.baseDir, "decisions");
     await fs.mkdir(decisionsDir, { recursive: true });
@@ -68,6 +74,40 @@ ${consequences}
 `;
 
     await fs.writeFile(path.resolve(decisionsDir, filename), content, "utf-8");
+
+    // Automatically index ADR into SQLite FTS5
+    this.ftsIndex.insert({
+      id: `adr:${filename}`,
+      type: "adr",
+      title: `ADR-${padded}: ${title}`,
+      content: `${context}\nDecision: ${decision}\nConsequences: ${consequences}`,
+      tags: "architecture adr decision",
+      runId,
+    });
+
     return filename;
+  }
+
+  recordRejectionFeedback(
+    runId: string,
+    candidateId: string,
+    reason: string
+  ): void {
+    this.ftsIndex.insert({
+      id: `rejection:${runId}:${candidateId}:${Date.now()}`,
+      type: "rejection",
+      title: `Rejection in run ${runId} (Candidate: ${candidateId})`,
+      content: reason,
+      tags: "rejection feedback clean-room",
+      runId,
+    });
+  }
+
+  searchMemories(query: string, limit: number = 5): MemorySearchResult[] {
+    return this.ftsIndex.search(query, limit);
+  }
+
+  close(): void {
+    this.ftsIndex.close();
   }
 }

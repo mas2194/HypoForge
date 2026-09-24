@@ -13,3 +13,5 @@ Thumbs.db
 
 # Ephemeral agent run executions (ADR in .agent/decisions/ are kept)
 .agent/runs/
+.agent/trajectories/
+.agent/memory.db*

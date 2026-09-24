@@ -17,6 +17,29 @@ export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
     timestamp: new Date().toISOString(),
     repoRoot: ctx.worktreeManager.repoRoot,
   });
+
+  // Hermes-style Memory Retrieval: Recall historical ADRs, rejections, and learnings
+  ctx.recalledMemories = ctx.memoryManager.searchMemories(ctx.goal, 3);
+  if (ctx.recalledMemories.length > 0) {
+    console.log(
+      `[Phase: Inspect] Recalled ${ctx.recalledMemories.length} historical memory item(s) from SQLite FTS5:`
+    );
+    for (const mem of ctx.recalledMemories) {
+      console.log(`  - [${mem.type.toUpperCase()}] ${mem.title}`);
+    }
+  }
+
+  // Hermes-style Skill Matching: Check for relevant procedural skills
+  ctx.activeSkills = await ctx.skillManager.matchSkills(ctx.goal, 3);
+  if (ctx.activeSkills.length > 0) {
+    console.log(
+      `[Phase: Inspect] Matched ${ctx.activeSkills.length} crystallized procedural skill(s):`
+    );
+    for (const skill of ctx.activeSkills) {
+      console.log(`  - ${skill.name} (trigger: ${skill.trigger})`);
+    }
+  }
+
   return "SUCCESS";
 }
 
@@ -38,13 +61,26 @@ export async function diagnoseAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Diagnose;
   console.log(`[Phase: Diagnose] Analyzing goal across Intervention Ladder informed by research...`);
 
-  let contextFeedback: string | undefined;
+  const feedbackParts: string[] = [];
+
   if (ctx.rejectionFeedbacks.length > 0) {
-    contextFeedback = `IMPORTANT FEEDBACK FROM PREVIOUS ATTEMPT:\n${ctx.rejectionFeedbacks
-      .map((f, i) => `Issue ${i + 1}: ${f}`)
-      .join("\n")}\nYou MUST address these blocking issues and avoid repeating the same architectural flaws.`;
+    feedbackParts.push(
+      `IMPORTANT FEEDBACK FROM PREVIOUS ATTEMPT:\n${ctx.rejectionFeedbacks
+        .map((f, i) => `Issue ${i + 1}: ${f}`)
+        .join("\n")}\nYou MUST address these blocking issues and avoid repeating the same architectural flaws.`
+    );
     console.log(`[Phase: Diagnose] Incorporating ${ctx.rejectionFeedbacks.length} feedback item(s) into diagnosis.`);
   }
+
+  // Incorporate recalled ADRs into diagnosis context to prevent architectural regressions
+  if (ctx.recalledMemories.length > 0) {
+    const memoryNotes = ctx.recalledMemories
+      .map((m) => `[${m.type.toUpperCase()}] ${m.title}: ${m.content.slice(0, 180)}...`)
+      .join("\n");
+    feedbackParts.push(`HISTORICAL ARCHITECTURAL CONTEXT & ADRs:\n${memoryNotes}`);
+  }
+
+  const contextFeedback = feedbackParts.length > 0 ? feedbackParts.join("\n\n") : undefined;
 
   ctx.diagnosis = await runArchitectPhase(
     {
@@ -119,12 +155,23 @@ export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Verify;
   console.log(`[Phase: Verify] Independently evaluating each worktree candidate with objective test suites...`);
   ctx.verifications = [];
+
+  // Determine effective test command, checking active procedural skills if testCommand not explicit
+  let effectiveTestCommand = ctx.testCommand;
+  if (!effectiveTestCommand && ctx.activeSkills.length > 0) {
+    const skillWithCommand = ctx.activeSkills.find((s) => s.command);
+    if (skillWithCommand?.command) {
+      effectiveTestCommand = skillWithCommand.command;
+      console.log(`[Phase: Verify] Reusing verified test command from skill '${skillWithCommand.name}': ${effectiveTestCommand}`);
+    }
+  }
+
   for (const impl of ctx.implementations) {
     const levelMultiplier = impl.level === "redesign" ? 3 : impl.level === "subsystem" ? 2 : 1;
     const result = await ctx.evaluator.runVerification({
       candidateId: impl.candidateId,
       worktreePath: impl.worktreePath,
-      testCommand: ctx.testCommand,
+      testCommand: effectiveTestCommand,
       interventionLevel: levelMultiplier,
     });
     ctx.verifications.push(result);
@@ -195,9 +242,17 @@ export async function captureRejectionFeedbackAction(ctx: HarnessContext): Promi
   if (ctx.review && !ctx.review.approved && ctx.review.blockingIssues.length > 0) {
     for (const issue of ctx.review.blockingIssues) {
       ctx.rejectionFeedbacks.push(`Clean-room review rejected candidate: ${issue}`);
+      // Record rejection in SQLite FTS5 memory
+      if (ctx.winner) {
+        ctx.memoryManager.recordRejectionFeedback(
+          ctx.runId,
+          ctx.winner.implementation.candidateId,
+          issue
+        );
+      }
     }
     console.log(
-      `[BT:Self-Healing] Captured ${ctx.review.blockingIssues.length} review blocking issue(s) for next exploration iteration.`
+      `[BT:Self-Healing] Captured ${ctx.review.blockingIssues.length} review blocking issue(s) for next exploration iteration and indexed in memory.`
     );
   }
 
@@ -257,10 +312,40 @@ export async function learnAction(ctx: HarnessContext): Promise<NodeStatus> {
       ctx.goal,
       contextText,
       `Selected candidate "${ctx.winner.implementation.candidateId}" (Level: ${ctx.winner.implementation.level}) based on objective verification score: ${ctx.winner.verification.score.toFixed(2)}.`,
-      `Clean-room review verified no architecture regressions.`
+      `Clean-room review verified no architecture regressions.`,
+      ctx.runId
     );
     ctx.adrFilename = adrFile;
-    console.log(`[Phase: Learn] Recorded ADR: ${adrFile}`);
+    console.log(`[Phase: Learn] Recorded ADR: ${adrFile} (Indexed in SQLite FTS5)`);
+
+    // Hermes-style Skill Crystallization:
+    // If a custom or verified test command was successfully used, crystallize it as a reusable skill
+    if (ctx.testCommand) {
+      try {
+        const skill = await ctx.skillManager.crystallizeSkill({
+          name: `Verification for ${ctx.goal.slice(0, 30)}`,
+          description: `Verified test command procedure for tasks targeting: "${ctx.goal}"`,
+          trigger: ctx.goal.slice(0, 30).toLowerCase(),
+          command: ctx.testCommand,
+          instructions: `Run command "${ctx.testCommand}" in isolated worktree for objective verification.`,
+          tags: ["verification", "test", "crystallized"],
+        });
+        ctx.crystallizedSkill = skill;
+        console.log(`[Phase: Learn] Crystallized procedural skill: "${skill.name}" (${skill.id})`);
+      } catch (err) {
+        console.warn("[Phase: Learn] Skill crystallization warning:", err);
+      }
+    }
+
+    // Hermes-style Trajectory Export:
+    // Save run trajectory and candidate preference pairs (DPO-compatible)
+    try {
+      const trajPath = await ctx.trajectoryExporter.exportRunTrajectory(ctx);
+      ctx.exportedTrajectoryPath = trajPath;
+      console.log(`[Phase: Learn] Exported full run trajectory with preference pairs to ${trajPath}`);
+    } catch (err) {
+      console.warn("[Phase: Learn] Trajectory export warning:", err);
+    }
   }
 
   await ctx.memoryManager.saveArtifact(ctx.runId, "final.json", {
@@ -269,6 +354,8 @@ export async function learnAction(ctx: HarnessContext): Promise<NodeStatus> {
     winner: ctx.winner,
     review: ctx.review,
     adr: ctx.adrFilename,
+    crystallizedSkill: ctx.crystallizedSkill?.id,
+    trajectory: ctx.exportedTrajectoryPath,
     finishedAt: new Date().toISOString(),
   });
 

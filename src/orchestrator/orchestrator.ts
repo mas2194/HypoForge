@@ -1,6 +1,8 @@
 import { WorktreeManager } from "../git/worktree.js";
 import { Evaluator } from "../evaluator/runner.js";
 import { DurableMemoryManager } from "../memory/durable-memory.js";
+import { SkillManager } from "../skills/skill-manager.js";
+import { TrajectoryExporter } from "../trajectory/exporter.js";
 import { GitHubBroker } from "../github/broker.js";
 import { CodexClientManager } from "../codex/client.js";
 import { buildHarnessBehaviorTree } from "./tree.js";
@@ -15,6 +17,7 @@ export interface OrchestratorOptions {
   publishPr?: boolean;
   maxExplorationAttempts?: number;
   enableTracing?: boolean;
+  dbPath?: string;
 }
 
 export class HarnessOrchestrator {
@@ -25,7 +28,15 @@ export class HarnessOrchestrator {
     const runId = `run-${Date.now()}`;
     const worktreeManager = new WorktreeManager({ repoRoot: options.repoRoot });
     const evaluator = new Evaluator();
-    const memoryManager = new DurableMemoryManager({ repoRoot: options.repoRoot });
+    const memoryManager = new DurableMemoryManager({
+      repoRoot: options.repoRoot,
+      dbPath: options.dbPath,
+    });
+    const skillManager = new SkillManager({
+      repoRoot: options.repoRoot,
+      ftsIndex: memoryManager.ftsIndex,
+    });
+    const trajectoryExporter = new TrajectoryExporter(worktreeManager.repoRoot);
     const githubBroker = new GitHubBroker();
     let codexManager: CodexClientManager | undefined;
 
@@ -48,8 +59,12 @@ export class HarnessOrchestrator {
       worktreeManager,
       evaluator,
       memoryManager,
+      skillManager,
+      trajectoryExporter,
       githubBroker,
       codexManager,
+      recalledMemories: [],
+      activeSkills: [],
       implementations: [],
       verifications: [],
       iteration: 1,
