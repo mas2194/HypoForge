@@ -1,5 +1,5 @@
 import type { RepoInspection, ProblemSignature } from "./inspect-repo.js";
-import { routeResearch } from "./research-router.js";
+import { routeResearch, type ResearchRoutingDecision } from "./research-router.js";
 
 export type ExecutionPath = "FAST" | "DEEP";
 
@@ -33,7 +33,8 @@ const DEEP_PATH_TRIGGERS = [
 export function triageExecutionPath(
   goal: string,
   inspection: RepoInspection,
-  signature: ProblemSignature
+  signature: ProblemSignature,
+  researchDecision: ResearchRoutingDecision = routeResearch(goal)
 ): TriageDecision {
   const goalLower = goal.toLowerCase();
   const signals: string[] = [];
@@ -46,7 +47,6 @@ export function triageExecutionPath(
   }
 
   // Check 2: Research signals
-  const researchDecision = routeResearch(goal);
   if (researchDecision.shouldResearch) {
     signals.push(...researchDecision.detectedSignals);
   }

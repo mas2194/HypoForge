@@ -9,7 +9,7 @@ import { runCleanRoomReviewPhase } from "../phases/review.js";
 import type { CandidateImplementation } from "../schemas/candidate.js";
 import type { VerificationResult } from "../schemas/result.js";
 import type { CandidateHypothesis } from "../schemas/diagnosis.js";
-import { routeResearch } from "../phases/research-router.js";
+import { judgeResearchNeed } from "../phases/research-router.js";
 
 import { evaluateDiversity, enforceDiversity } from "../phases/diversity-gate.js";
 import { routeBacktrack, BacktrackTarget } from "./backtrack-router.js";
@@ -156,7 +156,19 @@ export async function triageAction(ctx: HarnessContext): Promise<NodeStatus> {
     searchTerms: ctx.goal,
   };
 
-  const decision = triageExecutionPath(ctx.goal, inspection, signature);
+  const researchContext = JSON.stringify({
+    repoLanguage: inspection.repoLanguage,
+    targetSubsystems: inspection.targetSubsystems,
+    keyDependencies: inspection.keyDependencies,
+  });
+  const researchDecision = await judgeResearchNeed(
+    ctx.goal,
+    researchContext,
+    ctx.codexManager,
+    ctx.repoRoot
+  );
+  ctx.researchRouting = researchDecision;
+  const decision = triageExecutionPath(ctx.goal, inspection, signature, researchDecision);
   ctx.triageDecision = decision;
 
   console.log(
@@ -211,7 +223,22 @@ export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   // On-demand Check: Force research if explicitly routed here via Backtrack (e.g. EXTERNAL_SPEC error)
   const isBacktrackToResearch = ctx.backtrackDecision?.target === BacktrackTarget.Research;
 
-  const decision = routeResearch(ctx.goal);
+  const decision = ctx.researchRouting ?? (ctx.triageDecision
+    ? {
+        shouldResearch: ctx.triageDecision.requiresResearch,
+        reason: "Recovered from the Triage decision.",
+        detectedSignals: ctx.triageDecision.signals,
+      }
+    : await judgeResearchNeed(
+        ctx.goal,
+        JSON.stringify({
+          repoLanguage: ctx.repoInspection?.repoLanguage,
+          targetSubsystems: ctx.repoInspection?.targetSubsystems,
+          keyDependencies: ctx.repoInspection?.keyDependencies,
+        }),
+        ctx.codexManager,
+        ctx.repoRoot
+      ));
   ctx.researchRouting = decision;
 
   if (!isBacktrackToResearch && !decision.shouldResearch) {
