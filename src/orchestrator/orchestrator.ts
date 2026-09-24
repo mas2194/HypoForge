@@ -14,9 +14,9 @@ import { StructuredEvidenceStore } from "./evidence-store.js";
 import { BudgetTracker, type BudgetLimits } from "../budget/tracker.js";
 
 import { ExecutionJournal } from "../journal/execution-journal.js";
+import { reconcileRun, applyReconciledStateToContext } from "../journal/reconciliation.js";
 
 export interface OrchestratorOptions {
-
   goal: string;
   repoRoot?: string;
   testCommand?: string;
@@ -26,14 +26,17 @@ export interface OrchestratorOptions {
   budgetLimits?: Partial<BudgetLimits>;
   enableTracing?: boolean;
   dbPath?: string;
+  resumeRunId?: string;
 }
 
 export class HarnessOrchestrator {
   public readonly context: HarnessContext;
   public readonly tree: BTNode<HarnessContext>;
+  private readonly resumeRunId?: string;
 
   constructor(options: OrchestratorOptions) {
-    const runId = `run-${Date.now()}`;
+    this.resumeRunId = options.resumeRunId;
+    const runId = options.resumeRunId ?? `run-${Date.now()}`;
     const worktreeManager = new WorktreeManager({ repoRoot: options.repoRoot });
     const evaluator = new Evaluator();
     const memoryManager = new DurableMemoryManager({
@@ -121,6 +124,22 @@ export class HarnessOrchestrator {
   }
 
   async runUntilFinished(): Promise<HarnessContext> {
+    if (this.resumeRunId) {
+      console.log(`[Orchestrator:Reconciliation] Reconciling crashed or paused run '${this.resumeRunId}'...`);
+      const reconciled = await reconcileRun({
+        runId: this.resumeRunId,
+        journal: this.context.executionJournal,
+        worktreeManager: this.context.worktreeManager,
+        memoryManager: this.context.memoryManager,
+      });
+      await applyReconciledStateToContext(reconciled, this.context);
+      if (reconciled.nextPhase === Phase.Finished) {
+        this.context.finished = true;
+        this.context.phase = Phase.Finished;
+        return this.context;
+      }
+    }
+
     const status: NodeStatus = await this.tree.tick(this.context);
     this.context.finished = true;
     this.context.phase = Phase.Finished;

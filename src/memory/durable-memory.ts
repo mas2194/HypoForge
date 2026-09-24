@@ -44,6 +44,20 @@ export class DurableMemoryManager {
     );
   }
 
+  async getArtifact(runId: string, filename: string): Promise<any | null> {
+    const filePath = path.resolve(this.getRunDir(runId), filename);
+    try {
+      const content = await fs.readFile(filePath, "utf-8");
+      try {
+        return JSON.parse(content);
+      } catch {
+        return content;
+      }
+    } catch {
+      return null;
+    }
+  }
+
   async recordDecisionRecord(
     title: string,
     context: string,

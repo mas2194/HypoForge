@@ -16,9 +16,14 @@ import { routeBacktrack, BacktrackTarget } from "./backtrack-router.js";
 import { inspectRepository, generateProblemSignature } from "../phases/inspect-repo.js";
 import { createAndSaveVerifiedMemory, promoteMemoryProvenance } from "../memory/verified-memory.js";
 import { triageExecutionPath } from "../phases/triage.js";
+import { AdaptiveHypothesisScheduler } from "../phases/adaptive-scheduler.js";
 
 export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Inspect;
+  if (ctx.repoInspection && ctx.problemSignature) {
+    console.log(`[Phase: Inspect] Resuming from recovered repository inspection artifact.`);
+    return "SUCCESS";
+  }
   console.log(`[Phase: Inspect] Initializing run ${ctx.runId} for goal: "${ctx.goal}"`);
   await ctx.executionJournal.recordPhaseStart(ctx.runId, "Inspect", ctx.iteration);
   await ctx.memoryManager.initRun(ctx.runId, {
@@ -68,6 +73,10 @@ export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
 
 export async function triageAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Triage;
+  if (ctx.triageDecision) {
+    console.log(`[Phase: Triage] Resuming from recovered triage decision: '${ctx.triageDecision.path}'.`);
+    return "SUCCESS";
+  }
   const inspection = ctx.repoInspection ?? {
     recentGitHistory: [],
     changedFiles: [],
@@ -97,6 +106,12 @@ export async function triageAction(ctx: HarnessContext): Promise<NodeStatus> {
 
 export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Research;
+  if (ctx.research) {
+    console.log(
+      `[Phase: Research] Resuming from recovered research artifact (${ctx.research.priorArt.length} prior art studies, ${ctx.research.sotaApproaches.length} SOTA approaches).`
+    );
+    return "SUCCESS";
+  }
 
   // On-demand Check: Force research if explicitly routed here via Backtrack (e.g. EXTERNAL_SPEC error)
   const isBacktrackToResearch = ctx.backtrackDecision?.target === BacktrackTarget.Research;
@@ -134,6 +149,10 @@ export async function compactContextAction(ctx: HarnessContext): Promise<NodeSta
 
 export async function diagnoseAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Diagnose;
+  if (ctx.diagnosis && ctx.diagnosis.candidates.length > 0) {
+    console.log(`[Phase: Diagnose] Resuming from recovered diagnosis artifact (${ctx.diagnosis.candidates.length} candidates).`);
+    return "SUCCESS";
+  }
   console.log(`[Phase: Diagnose] Analyzing goal across Intervention Ladder informed by research...`);
 
   // Build high-signal, distilled prompt context from prior learnings, ADRs, and active skills
@@ -187,6 +206,12 @@ export async function falsifyAction(ctx: HarnessContext): Promise<NodeStatus> {
     return "FAILURE";
   }
   ctx.phase = Phase.Falsify;
+  if (ctx.falsifiedCandidates && ctx.falsifiedCandidates.length > 0) {
+    console.log(
+      `[Phase: Falsify] Resuming from recovered falsification artifact (${ctx.falsifiedCandidates.length} survivors).`
+    );
+    return "SUCCESS";
+  }
   console.log(`[Phase: Falsify] Subjecting candidates to rigorous counter-argument scrutiny...`);
   const { candidates, reviews } = await runFalsifyPhase(
     {
@@ -252,13 +277,13 @@ export async function fastImplementAction(ctx: HarnessContext): Promise<NodeStat
 
 export async function implementAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Implement;
-  const candidates = ctx.falsifiedCandidates ?? ctx.diagnosis?.candidates ?? [];
-  if (candidates.length === 0) {
+  const rawCandidates = ctx.falsifiedCandidates ?? ctx.diagnosis?.candidates ?? [];
+  if (rawCandidates.length === 0) {
     return "FAILURE";
   }
 
   // Budget tracking: register new candidates
-  ctx.budgetTracker.recordCandidates(candidates.length);
+  ctx.budgetTracker.recordCandidates(rawCandidates.length);
   const budgetStatus = ctx.budgetTracker.checkBudget();
   if (budgetStatus.exhausted) {
     console.warn(`[BT:Budget] Exploration halted by budget limit: ${budgetStatus.reason}`);
@@ -267,9 +292,17 @@ export async function implementAction(ctx: HarnessContext): Promise<NodeStatus> 
     return "FAILURE";
   }
 
-  console.log(`[Phase: Implement] Spawning parallel worktrees for ${candidates.length} candidate(s)...`);
+  // Adaptive Hypothesis Scheduling (Bayesian Expected Information Gain per Cost):
+  const scheduler = new AdaptiveHypothesisScheduler(rawCandidates);
+  ctx.hypothesisScheduler = scheduler;
+  const prioritized = scheduler.getPrioritizedSchedule().map((p) => p.candidate);
+
+  console.log(
+    `[Phase: Implement] Scheduling ${prioritized.length} candidate(s) via Adaptive Information Gain per Cost (${prioritized.map((c) => `${c.id} [${c.level}]`).join(", ")})`
+  );
+
   ctx.implementations = await runImplementPhase({
-    candidates,
+    candidates: prioritized,
     worktreeManager: ctx.worktreeManager,
     codexManager: ctx.codexManager,
     runId: ctx.runId,
@@ -322,6 +355,18 @@ export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
     console.log(
       `  - Candidate ${impl.candidateId} (${impl.level}): hardGates=${result.hardGates.passedAll ? "PASS" : "FAIL"}, passed=${result.tests.passed}, failed=${result.tests.failed}, lines=+${result.softMetrics.addedLines}/-${result.softMetrics.deletedLines}`
     );
+  }
+
+  // 3. Update Adaptive Hypothesis Scheduler with experiment outcomes
+  if (ctx.hypothesisScheduler) {
+    for (const v of ctx.verifications) {
+      const falsified = !v.hardGates.passedAll || v.tests.failed > 0;
+      ctx.hypothesisScheduler.recordExperimentOutcome(v.candidateId, {
+        falsified,
+        testScore: v.score,
+        evidenceStrength: falsified ? 0.95 : 0.85,
+      });
+    }
   }
 
   await ctx.memoryManager.saveArtifact(ctx.runId, "results.json", {

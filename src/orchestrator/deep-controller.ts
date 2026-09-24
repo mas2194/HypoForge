@@ -104,9 +104,28 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
     ctx.attempts.push(deepAttempt);
   }
 
-  // 1. Dynamic Entry: Route to RESEARCH only if required by Triage or external spec uncertainty
+  // 1. Dynamic Entry: Check if resuming from reconciled phase or route to RESEARCH / DIAGNOSE
   const requiresResearch = ctx.triageDecision?.requiresResearch ?? false;
-  let nextPhase: DeepPhase = requiresResearch ? "RESEARCH" : "DIAGNOSE";
+  let nextPhase: DeepPhase;
+  if (ctx.phase === Phase.Implement) {
+    nextPhase = "IMPLEMENT";
+  } else if (ctx.phase === Phase.Verify) {
+    nextPhase = "VERIFY";
+  } else if (ctx.phase === Phase.Compare) {
+    nextPhase = "COMPARE";
+  } else if (ctx.phase === Phase.Review) {
+    nextPhase = "REVIEW";
+  } else if (ctx.phase === Phase.Falsify) {
+    nextPhase = "FALSIFY";
+  } else if (ctx.phase === Phase.DiversityGate) {
+    nextPhase = "DIVERSITY_GATE";
+  } else if (ctx.phase === Phase.Diagnose) {
+    nextPhase = "DIAGNOSE";
+  } else if (ctx.phase === Phase.Research || requiresResearch) {
+    nextPhase = "RESEARCH";
+  } else {
+    nextPhase = "DIAGNOSE";
+  }
 
   console.log(`[DeepController:FSM] Initializing Deep Exploration Loop (Entry Phase: ${nextPhase}, Max Iterations: ${maxIterations})`);
 

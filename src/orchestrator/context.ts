@@ -18,6 +18,7 @@ import type { ContextCompactor, DistilledLesson, CompactionRecord } from "./comp
 import type { ResearchRoutingDecision } from "../phases/research-router.js";
 import type { TriageDecision } from "../phases/triage.js";
 import type { ExecutionJournal } from "../journal/execution-journal.js";
+import type { AdaptiveHypothesisScheduler } from "../phases/adaptive-scheduler.js";
 
 export enum Phase {
   Inspect = "Inspect",
@@ -138,6 +139,7 @@ export interface HarnessContext {
   paretoComparison?: ParetoComparisonResult;
   candidateQueue: QueuedCandidate[];
   rejectedCandidates: RejectedCandidateRecord[];
+  hypothesisScheduler?: AdaptiveHypothesisScheduler;
   winner?: QueuedCandidate;
   review?: ReviewResult;
   publishedPrUrl?: string;
