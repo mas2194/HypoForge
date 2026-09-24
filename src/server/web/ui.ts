@@ -1022,6 +1022,8 @@ export function renderWebUI(): string {
       workspaceFiles: [],
     };
 
+    const renderedMessageIds = new Set();
+
     // DOM Elements
     const chatMessagesEl = document.getElementById("chat-messages");
     const userInputEl = document.getElementById("user-input");
@@ -1040,9 +1042,9 @@ export function renderWebUI(): string {
     // Initialize application
     async function init() {
       setupEventListeners();
-      await fetchInitialStatus();
-      await fetchWorkspaceFiles();
       connectEventStream();
+      fetchInitialStatus().catch((err) => console.error("Error fetching status:", err));
+      fetchWorkspaceFiles().catch((err) => console.warn("Error fetching files:", err));
     }
 
     // Connect to Server-Sent Events (SSE)
@@ -1117,8 +1119,15 @@ export function renderWebUI(): string {
     }
 
     function appendChatMessage(data) {
+      if (data.id && renderedMessageIds.has(data.id)) {
+        return;
+      }
+      if (data.id) {
+        renderedMessageIds.add(data.id);
+      }
+
       const msgDiv = document.createElement("div");
-      msgDiv.className = "message " + data.role;
+      msgDiv.className = "message " + (data.role || "system");
 
       const metaDiv = document.createElement("div");
       metaDiv.className = "message-meta";
@@ -1232,7 +1241,7 @@ export function renderWebUI(): string {
       const avatarIcon = getAgentIcon(agent.id, agent.name);
 
       card.innerHTML =
-        '<div class="agent-card-header" onclick="toggleCard(\'' + agent.id + '\')">' +
+        '<div class="agent-card-header">' +
           '<div class="agent-identity">' +
             '<div class="agent-avatar">' + avatarIcon + '</div>' +
             '<div class="agent-names">' +
@@ -1251,6 +1260,11 @@ export function renderWebUI(): string {
             '<div class="activity-content" id="content-logs-' + agent.id + '">Initializing agent...</div>' +
           '</div>' +
         '</div>';
+
+      const header = card.querySelector(".agent-card-header");
+      if (header) {
+        header.addEventListener("click", () => toggleCard(agent.id));
+      }
 
       agent.el = card;
       subagentListEl.prepend(card);
@@ -1364,15 +1378,39 @@ export function renderWebUI(): string {
 
       userInputEl.value = "";
       closeAutocomplete();
+      sendBtnEl.disabled = true;
 
       try {
-        await fetch("/api/chat", {
+        const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: input }),
         });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          console.error("Failed to send message:", errData);
+          appendChatMessage({
+            id: "err-" + Date.now(),
+            role: "system",
+            text: "❌ Error: " + (errData.error || res.statusText),
+            timestamp: new Date().toISOString(),
+          });
+          if (!state.isRunning) {
+            sendBtnEl.disabled = false;
+          }
+        }
       } catch (err) {
         console.error("Error sending message:", err);
+        appendChatMessage({
+          id: "err-" + Date.now(),
+          role: "system",
+          text: "❌ Network error sending message: " + (err.message || String(err)),
+          timestamp: new Date().toISOString(),
+        });
+        if (!state.isRunning) {
+          sendBtnEl.disabled = false;
+        }
       }
     }
 
@@ -1390,7 +1428,8 @@ export function renderWebUI(): string {
 
         if (lastAt !== -1 && !val.slice(lastAt, cursor).includes(" ")) {
           const query = val.slice(lastAt + 1, cursor).toLowerCase();
-          const matches = state.workspaceFiles
+          const fileList = Array.isArray(state.workspaceFiles) ? state.workspaceFiles : [];
+          const matches = fileList
             .filter((f) => f.toLowerCase().includes(query))
             .slice(0, 8);
 
@@ -1466,6 +1505,7 @@ export function renderWebUI(): string {
 
       document.getElementById("clear-chat-btn").addEventListener("click", () => {
         chatMessagesEl.innerHTML = "";
+        renderedMessageIds.clear();
       });
 
       modelSelectEl.addEventListener("change", async (e) => {
@@ -1608,7 +1648,12 @@ export function renderWebUI(): string {
     async function fetchWorkspaceFiles() {
       try {
         const res = await fetch("/api/files");
-        state.workspaceFiles = await res.json();
+        if (res.ok) {
+          const files = await res.json();
+          if (Array.isArray(files)) {
+            state.workspaceFiles = files;
+          }
+        }
       } catch (err) {
         console.warn("Could not fetch workspace files:", err);
       }

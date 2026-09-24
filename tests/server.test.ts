@@ -1,3 +1,4 @@
+import * as vm from "node:vm";
 import { describe, it, expect, afterEach } from "vitest";
 import { parseCliArgs } from "../src/main.js";
 import { startWebServer, type RunningServer } from "../src/server/server.js";
@@ -150,6 +151,24 @@ describe("Web Server and Server Mode", () => {
       controller.abort();
     });
 
+    it("serves valid client-side JavaScript in Web UI with no syntax errors", async () => {
+      activeServer = await startWebServer({ port: 0 });
+      const base = `http://localhost:${activeServer.port}`;
+
+      const res = await fetch(`${base}/`);
+      const html = await res.text();
+      const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>/);
+
+      expect(scriptMatch).not.toBeNull();
+      const scriptCode = scriptMatch![1];
+      expect(scriptCode.length).toBeGreaterThan(100);
+
+      // Verify the client script parses cleanly without syntax errors
+      expect(() => {
+        new vm.Script(scriptCode, { filename: "web-ui.js" });
+      }).not.toThrow();
+    });
+
     it("accepts chat message and registers in chat history", async () => {
       const runner = new HarnessRunner();
       activeServer = await startWebServer({ port: 0, runner });
@@ -165,6 +184,44 @@ describe("Web Server and Server Mode", () => {
       const userMsg = runner.chatHistory.find((m) => m.text === "/help");
       expect(userMsg).toBeDefined();
       expect(userMsg?.role).toBe("user");
+
+      const assistantMsg = runner.chatHistory.find((m) => m.role === "assistant");
+      expect(assistantMsg).toBeDefined();
+    });
+
+    it("streams chat messages and status over SSE when user posts a message", async () => {
+      const runner = new HarnessRunner();
+      activeServer = await startWebServer({ port: 0, runner });
+      const base = `http://localhost:${activeServer.port}`;
+
+      const controller = new AbortController();
+      const sseRes = await fetch(`${base}/api/events`, {
+        signal: controller.signal,
+      });
+      const reader = sseRes.body?.getReader();
+      expect(reader).toBeDefined();
+
+      // Send slash command message via /api/chat
+      const postRes = await fetch(`${base}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "/help" }),
+      });
+      expect(postRes.status).toBe(200);
+
+      // Read SSE stream until we see the user message and assistant response
+      let streamData = "";
+      while (!streamData.includes("/help") || !streamData.includes("Available Commands")) {
+        const { value, done } = await reader!.read();
+        if (done) break;
+        streamData += new TextDecoder().decode(value);
+      }
+
+      expect(streamData).toContain("/help");
+      expect(streamData).toContain("chat:message");
+      expect(streamData).toContain("Available Commands");
+
+      controller.abort();
     });
   });
 });
