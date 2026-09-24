@@ -19,6 +19,7 @@ import {
   compareAction,
   cleanRoomReviewAction,
   captureRejectionFeedbackAction,
+  compactContextAction,
   integrateAction,
   publishAction,
   learnAction,
@@ -52,15 +53,17 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
     ),
   ]);
 
-  // Self-Healing Retry Decorator
+  // Self-Healing Retry Decorator with Context Compaction
   const selfHealingLoop = retry(
     maxAttempts,
     "Self-Healing Exploration Loop",
     exploreAndValidateSubtree,
     (attempt, ctx) => {
       ctx.iteration = attempt + 1;
+      // Compact and distill blackboard context upon backtracking
+      ctx.compactor.compactForBacktrack(ctx);
       console.log(
-        `\n[BT:Self-Healing] === Backtracking to Diagnose for Iteration ${ctx.iteration}/${maxAttempts} ===`
+        `\n[BT:Self-Healing] === Backtracking to Diagnose for Iteration ${ctx.iteration}/${maxAttempts} (Context Compacted) ===`
       );
     }
   );

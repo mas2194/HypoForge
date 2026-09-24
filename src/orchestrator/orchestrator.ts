@@ -5,6 +5,7 @@ import { SkillManager } from "../skills/skill-manager.js";
 import { TrajectoryExporter } from "../trajectory/exporter.js";
 import { GitHubBroker } from "../github/broker.js";
 import { CodexClientManager } from "../codex/client.js";
+import { ContextCompactor } from "./compactor.js";
 import { buildHarnessBehaviorTree } from "./tree.js";
 import type { BTNode, NodeStatus } from "../bt/types.js";
 import { Phase, type HarnessContext } from "./context.js";
@@ -63,12 +64,15 @@ export class HarnessOrchestrator {
       trajectoryExporter,
       githubBroker,
       codexManager,
+      compactor: new ContextCompactor(),
       recalledMemories: [],
       activeSkills: [],
       implementations: [],
       verifications: [],
       iteration: 1,
       rejectionFeedbacks: [],
+      distilledLessons: [],
+      compactionRecords: [],
       traceLog: [],
     };
 

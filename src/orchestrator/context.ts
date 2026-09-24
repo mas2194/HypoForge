@@ -13,6 +13,7 @@ import type { CandidateImplementation } from "../schemas/candidate.js";
 import type { VerificationResult, ReviewResult } from "../schemas/result.js";
 import type { FalsifiedCandidate } from "../phases/falsify.js";
 import type { NodeExecutionRecord } from "../bt/types.js";
+import type { ContextCompactor, DistilledLesson, CompactionRecord } from "./compactor.js";
 
 export enum Phase {
   Inspect = "Inspect",
@@ -48,6 +49,7 @@ export interface HarnessContext {
   trajectoryExporter: TrajectoryExporter;
   githubBroker: GitHubBroker;
   codexManager?: CodexClientManager;
+  compactor: ContextCompactor;
 
   // Hermes-style Dynamic Memories & Skills
   recalledMemories: MemorySearchResult[];
@@ -73,5 +75,7 @@ export interface HarnessContext {
   // Self-Healing Feedback and Observability
   iteration: number;
   rejectionFeedbacks: string[];
+  distilledLessons: DistilledLesson[];
+  compactionRecords: CompactionRecord[];
   traceLog: NodeExecutionRecord[];
 }

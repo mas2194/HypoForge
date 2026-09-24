@@ -57,30 +57,20 @@ export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   return "SUCCESS";
 }
 
+export async function compactContextAction(ctx: HarnessContext): Promise<NodeStatus> {
+  ctx.compactor.compactForBacktrack(ctx);
+  return "SUCCESS";
+}
+
 export async function diagnoseAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Diagnose;
   console.log(`[Phase: Diagnose] Analyzing goal across Intervention Ladder informed by research...`);
 
-  const feedbackParts: string[] = [];
-
-  if (ctx.rejectionFeedbacks.length > 0) {
-    feedbackParts.push(
-      `IMPORTANT FEEDBACK FROM PREVIOUS ATTEMPT:\n${ctx.rejectionFeedbacks
-        .map((f, i) => `Issue ${i + 1}: ${f}`)
-        .join("\n")}\nYou MUST address these blocking issues and avoid repeating the same architectural flaws.`
-    );
-    console.log(`[Phase: Diagnose] Incorporating ${ctx.rejectionFeedbacks.length} feedback item(s) into diagnosis.`);
+  // Build high-signal, distilled prompt context from prior learnings, ADRs, and active skills
+  const contextFeedback = ctx.compactor.buildDiagnosisPromptContext(ctx);
+  if (contextFeedback) {
+    console.log(`[Phase: Diagnose] Incorporating distilled feedback and constraints into diagnosis.`);
   }
-
-  // Incorporate recalled ADRs into diagnosis context to prevent architectural regressions
-  if (ctx.recalledMemories.length > 0) {
-    const memoryNotes = ctx.recalledMemories
-      .map((m) => `[${m.type.toUpperCase()}] ${m.title}: ${m.content.slice(0, 180)}...`)
-      .join("\n");
-    feedbackParts.push(`HISTORICAL ARCHITECTURAL CONTEXT & ADRs:\n${memoryNotes}`);
-  }
-
-  const contextFeedback = feedbackParts.length > 0 ? feedbackParts.join("\n\n") : undefined;
 
   ctx.diagnosis = await runArchitectPhase(
     {
@@ -273,6 +263,7 @@ export async function integrateAction(ctx: HarnessContext): Promise<NodeStatus> 
     return "FAILURE";
   }
   ctx.phase = Phase.Integrate;
+  ctx.compactor.compactForPhaseTransition(ctx, Phase.Integrate);
   console.log(`[Phase: Integrate] Merging winning branch '${ctx.winner.implementation.branchName}'...`);
   const mergeResult = await ctx.worktreeManager.mergeBranch(ctx.winner.implementation.branchName);
   if (!mergeResult.success) {
@@ -356,6 +347,8 @@ export async function learnAction(ctx: HarnessContext): Promise<NodeStatus> {
     adr: ctx.adrFilename,
     crystallizedSkill: ctx.crystallizedSkill?.id,
     trajectory: ctx.exportedTrajectoryPath,
+    compactionCount: ctx.compactionRecords?.length ?? 0,
+    distilledLessonCount: ctx.distilledLessons?.length ?? 0,
     finishedAt: new Date().toISOString(),
   });
 

@@ -1089,6 +1089,39 @@ agent/architecture/<topic>
 
 ---
 
+# 20. キリのいい段階でのコンテキスト圧縮（Context Compaction & Distillation）
+
+長時間探索や複数回のリトライ（Self-Healing Loop）を行うと、コンテキスト（対話履歴や共有ステート）が肥大化し、**注意の希釈（Attention Dilution）** や **過去の失敗したコードへの引きずられ（Anchoring）** が発生します。
+
+本ハーネスでは `ContextCompactor` により、**「キリのいい段階」** で決定論的にコンテキストを圧縮・蒸留します。
+
+```text
+       [Clean-Room Review Reject / Test Fail]
+                         │
+                         ▼
+        ┌─────────────────────────────────┐
+        │       ContextCompactor          │
+        │   - 失敗したWorktree/実装をパージ   │
+        │   - 不変条件違反・教訓のみを蒸留    │
+        │   - SQLite FTS5へ永続化退避     │
+        └────────────────┬────────────────┘
+                         │
+                         ▼ (Distilled High-Signal Context)
+                [Diagnose (Retry)]
+```
+
+### 1. 圧縮のトリガーポイント
+1. **自己修復リトライのバックトラック時（Backtrack Boundary）**:
+   Reviewリジェクトやテスト全滅で再試行する際、過去の全コード差分やスタックトレースを破棄し、「何がダメだったのか（制約・不変条件）」だけを抽出してリセット。
+2. **フェーズ遷移境界（Phase Boundary）**:
+   ResearchやReviewのチャット詳細ログを捨て、スキーマ化された要約アーティファクトのみを次のフェーズへ引き継ぐ（Ephemeral Worker Pattern）。
+
+### 2. 残すもの vs 捨てるもの
+* **残すもの（State / Invariants）**: ゴール、破られた不変条件（Negative Constraints）、確定したADR/スキル、客観的テスト数値。
+* **捨てるもの（Transient Noise）**: 試行錯誤の途中チャットログ、スタックトレース全文、却下された候補の中間コード。
+
+---
+
 ## 最終的に目指すべきループ
 
 普通のCodex harnessは、
