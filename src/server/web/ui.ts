@@ -1806,8 +1806,11 @@ export function renderWebUI(): string {
 
     function agentTextToMarkdown(text) {
       const trimmed = String(text || "").trim();
-      const fencedJson = trimmed.match(/^```(?:json)?\\s*([\\s\\S]*?)\\s*```$/i);
-      const candidate = fencedJson ? fencedJson[1].trim() : trimmed;
+      const fence = String.fromCharCode(96).repeat(3);
+      let candidate = trimmed;
+      if (candidate.startsWith(fence) && candidate.endsWith(fence)) {
+        candidate = candidate.slice(fence.length, -fence.length).replace(/^json\\s*/i, "").trim();
+      }
       try {
         return jsonToMarkdown(JSON.parse(candidate));
       } catch {
@@ -1843,7 +1846,8 @@ export function renderWebUI(): string {
 
     function jsonScalarToMarkdown(value) {
       if (typeof value === "string") return value || "_Empty_";
-      return "`" + String(value) + "`";
+      const tick = String.fromCharCode(96);
+      return tick + String(value) + tick;
     }
 
     function formatMarkdown(text) {
