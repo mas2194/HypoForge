@@ -373,7 +373,7 @@ HARNESS_TEST_COMMAND="npm test"
 対話型プロンプトまたは引数指定でハーネスを起動します：
 
 ```bash
-# 対話型モード（Enter: 改行、Cmd+Enter [macOS] / Ctrl+Enter [Linux/Windows] / Ctrl+D: 送信）
+# 対話型モード（Enter: 送信、Shift+Enter: 改行）
 npx tsx src/main.ts
 
 # 直接目標（ゴール）を指定して実行

@@ -40,39 +40,39 @@ async function promptUserInstruction(promptText: string): Promise<string> {
       }
     };
 
-    const isMac = process.platform === "darwin";
-
-    const isSubmitKey = (str?: string, key?: readline.Key): boolean => {
+    const isNewlineKey = (str?: string, key?: readline.Key): boolean => {
       if (!key && !str) return false;
-      // Universal EOF / submit
-      if (key && key.ctrl && key.name === "d") return true;
-
-      // macOS: Command+Enter (Meta/Super+Return)
-      if (isMac) {
-        if (key && key.meta && (key.name === "return" || key.name === "enter")) return true;
-        if (key && (key.sequence === "\x1b\r" || key.sequence === "\x1b\n")) return true;
-        if (str === "\x1b\r" || str === "\x1b\n") return true;
-        // CSI u Super/Cmd (modifier 9 or 8): \x1b[13;9u or \x1b[10;9u or \x1b[13;8u
-        if (key && (key.sequence === "\x1b[13;9u" || key.sequence === "\x1b[10;9u" || key.sequence === "\x1b[13;8u")) return true;
-        // XTerm modifyOtherKeys for Cmd/Meta
-        if (str && (str.includes("\x1b[27;9;13~") || str.includes("\x1b[27;8;13~"))) return true;
-      }
-
-      // Ctrl+Enter: \x1b[13;5u or \x1b[10;5u (also fallback on Mac)
-      if (key && (key.sequence === "\x1b[13;5u" || key.sequence === "\x1b[10;5u")) return true;
-      // XTerm modifyOtherKeys
-      if (str && str.includes("\x1b[27;5;13~")) return true;
-      // Explicit Ctrl flag with return/enter/j
-      if (key && key.ctrl && (key.name === "return" || key.name === "enter" || key.name === "j")) return true;
-      // Terminal.app & standard TTY sends \n (0x0A) for Ctrl+Enter / Ctrl+J
-      if ((key && key.sequence === "\n") || str === "\n") return true;
+      // Shift+Enter (CSI u or shift flag)
+      if (key && key.shift && (key.name === "return" || key.name === "enter")) return true;
+      if (key && (key.sequence === "\x1b[13;2u" || key.sequence === "\x1b[10;2u")) return true;
+      if (str && str.includes("\x1b[27;2;13~")) return true;
+      // Option+Enter / Alt+Enter
+      if (key && key.meta && (key.name === "return" || key.name === "enter")) return true;
+      if (key && (key.sequence === "\x1b\r" || key.sequence === "\x1b\n")) return true;
+      if (str === "\x1b\r" || str === "\x1b\n") return true;
       return false;
     };
 
-    const isNewlineKey = (str?: string, key?: readline.Key): boolean => {
-      if (isSubmitKey(str, key)) return false;
-      // Normal Enter key in raw mode sends \r (0x0D)
+    const isSubmitKey = (str?: string, key?: readline.Key): boolean => {
+      if (!key && !str) return false;
+      if (isNewlineKey(str, key)) return false;
+
+      // Regular Enter: \r (0x0D) or \n (0x0A) -> Submit!
       if ((key && key.sequence === "\r") || str === "\r") return true;
+      if ((key && key.sequence === "\n") || str === "\n") return true;
+
+      // Universal EOF / submit (Ctrl+D)
+      if (key && key.ctrl && key.name === "d") return true;
+
+      // Command+Enter / Super+Enter
+      if (key && (key.sequence === "\x1b[13;9u" || key.sequence === "\x1b[10;9u" || key.sequence === "\x1b[13;8u")) return true;
+      if (str && (str.includes("\x1b[27;9;13~") || str.includes("\x1b[27;8;13~"))) return true;
+
+      // Ctrl+Enter
+      if (key && (key.sequence === "\x1b[13;5u" || key.sequence === "\x1b[10;5u")) return true;
+      if (str && str.includes("\x1b[27;5;13~")) return true;
+      if (key && key.ctrl && (key.name === "return" || key.name === "enter" || key.name === "j")) return true;
+
       return false;
     };
 
@@ -242,13 +242,10 @@ async function main() {
   console.log(`Active Model: ${currentModel} | Reasoning Effort: ${currentEffort}`);
   console.log("Tip: Use /model or /effort to configure, /help for all commands\n");
 
-  const isMac = process.platform === "darwin";
-  const submitShortcut = isMac ? "Cmd+Enter" : "Ctrl+Enter";
-
   // Interactive mode: wait for user instruction with multi-line support
   while (true) {
     const answer = await promptUserInstruction(
-      `Enter goal or command (Enter: newline | ${submitShortcut} or Ctrl+D: submit | '/exit': quit | '/help': commands):\n> `
+      "Enter goal or command (Enter: submit | Shift+Enter: newline | '/help': commands):\n> "
     );
     const trimmed = answer.trim();
 

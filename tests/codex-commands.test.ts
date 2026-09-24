@@ -229,7 +229,7 @@ describe("/model and /effort Slash Commands", () => {
     expect(helpRes.output).toContain("/effort [level|num]");
     expect(helpRes.output).toContain("/status");
     expect(helpRes.output).toContain("/exit, /quit, /q");
-    expect(helpRes.output).toContain(process.platform === "darwin" ? "Cmd+Enter" : "Ctrl+Enter");
+    expect(helpRes.output).toContain("Enter: submit goal or command");
   });
 
   it("dispatches commands via executeSlashCommand", () => {
