@@ -689,6 +689,7 @@ export function renderWebUI(): string {
     }
 
     .explore-step:hover { border-color: var(--border-focus); color: var(--text-primary); }
+    .explore-step.selected { border-color: var(--accent-blue); color: var(--accent-blue); box-shadow: 0 0 0 1px var(--accent-blue); }
     .explore-step.running { border-color: var(--accent-blue); color: var(--accent-blue); }
     .explore-step.completed { border-color: var(--accent-green); color: var(--accent-green); }
     .explore-step.failed { border-color: var(--accent-red); color: var(--accent-red); }
@@ -1474,13 +1475,15 @@ export function renderWebUI(): string {
         }
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "explore-step " + status;
+        button.className = "explore-step " + status + (state.phaseFilter === phase ? " selected" : "");
         button.textContent = phase.replace(/([a-z])([A-Z])/g, "$1 $2");
         button.title = "Jump to " + phase + " activity";
         button.addEventListener("click", () => {
+          state.phaseFilter = phase;
+          renderExploreFlow();
+          renderActivityVisibility();
           const target = document.getElementById("phase-summary-" + phase) || [...state.subAgents.values()].find((agent) => agent.phase === phase)?.el;
           target?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          target?.focus?.({ preventScroll: true });
         });
         exploreFlowStepsEl.appendChild(button);
         if (index < explorePhases.length - 1) {
