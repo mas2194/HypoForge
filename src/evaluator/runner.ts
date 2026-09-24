@@ -12,6 +12,16 @@ import {
 
 const execAsync = promisify(exec);
 
+function normalizeExitCode(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  // Spawn failures (for example ENOENT) expose a string code, not a process exit status.
+  return 1;
+}
+
 export interface RunVerificationOptions {
   candidateId: string;
   worktreePath: string;
@@ -176,7 +186,7 @@ export class Evaluator {
       testOutput = `${err.stdout || ""}\n${err.stderr || ""}\n${err.message || ""}`.trim();
       passed = 0;
       failed = 1;
-      exitCode = err.code ?? 1;
+      exitCode = normalizeExitCode(err.code);
       regressions.push(`Baseline test command failed: ${testCommand}`);
     }
 
@@ -276,7 +286,7 @@ export class Evaluator {
       testOutput = `${err.stdout || ""}\n${err.stderr || ""}\n${err.message || ""}`.trim();
       passed = 0;
       failed = 1;
-      exitCode = err.code ?? 1;
+      exitCode = normalizeExitCode(err.code);
       regressions.push(`Test command failed: ${testCommand}`);
     }
     const duration = Date.now() - startTime;
