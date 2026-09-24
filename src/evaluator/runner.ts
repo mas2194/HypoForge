@@ -1,6 +1,7 @@
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import { VerificationResultSchema, type VerificationResult } from "../schemas/result.js";
+import { verifyTestIntegrity } from "./integrity.js";
 
 const execAsync = promisify(exec);
 
@@ -52,6 +53,7 @@ export class Evaluator {
       noRegressions: regressions.length === 0,
       typecheckPassed: true,
       lintPassed: true,
+      testIntegrityPassed: true,
       passedAll: testsPassed && regressions.length === 0,
       failureReasons: regressions,
     };
@@ -152,15 +154,27 @@ export class Evaluator {
       perfImprovement = ((benchmarkBefore - benchmarkAfter) / benchmarkBefore) * 100;
     }
 
+    // 3.5 Test & Oracle Integrity Gate (Anti-Cheating Check)
+    const integrityResult = await verifyTestIntegrity({
+      worktreePath,
+      repoRoot: worktreePath,
+      baseBranch,
+    });
+    if (!integrityResult.passed) {
+      regressions.push(...integrityResult.violations);
+    }
+
     // 4. Hard Gates Check
     const testsPassed = failed === 0 && passed > 0;
     const noRegressions = regressions.length === 0;
+    const testIntegrityPassed = integrityResult.passed;
     const hardGates = {
       testsPassed,
       noRegressions,
       typecheckPassed: true,
       lintPassed: true,
-      passedAll: testsPassed && noRegressions,
+      testIntegrityPassed,
+      passedAll: testsPassed && noRegressions && testIntegrityPassed,
       failureReasons: regressions,
     };
 

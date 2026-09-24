@@ -5,6 +5,7 @@ export const HardGateResultSchema = z.object({
   noRegressions: z.boolean().default(true),
   typecheckPassed: z.boolean().default(true),
   lintPassed: z.boolean().default(true),
+  testIntegrityPassed: z.boolean().default(true),
   passedAll: z.boolean().default(true),
   failureReasons: z.array(z.string()).default([]),
 });
@@ -31,6 +32,7 @@ export const VerificationResultSchema = z.object({
     noRegressions: true,
     typecheckPassed: true,
     lintPassed: true,
+    testIntegrityPassed: true,
     passedAll: true,
     failureReasons: [],
   }),
@@ -69,11 +71,23 @@ export const VerificationResultSchema = z.object({
 
 export type VerificationResult = z.infer<typeof VerificationResultSchema>;
 
+export const FailureClassSchema = z.enum([
+  "IMPLEMENTATION_ERROR", // localized syntax, typo, compilation -> Implement
+  "FALSIFICATION_GAP",    // missed edge case, counterexample -> Falsify
+  "ROOT_CAUSE_ERROR",     // incorrect hypothesis, invariant violation -> Diagnose
+  "EXTERNAL_SPEC",        // third-party library / API / RFC mismatch -> Research
+  "REPO_MODEL_ERROR",     // incorrect repo structure assumption -> Inspect
+]);
+
+export type FailureClass = z.infer<typeof FailureClassSchema>;
+
 export const ReviewResultSchema = z.object({
   approved: z.boolean(),
+  failureClass: FailureClassSchema.optional(),
   blockingIssues: z.array(z.string()),
   suggestions: z.array(z.string()),
   feedback: z.string(),
 });
 
 export type ReviewResult = z.infer<typeof ReviewResultSchema>;
+

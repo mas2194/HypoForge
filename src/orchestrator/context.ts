@@ -16,11 +16,15 @@ import type { NodeExecutionRecord } from "../bt/types.js";
 import type { ContextCompactor, DistilledLesson, CompactionRecord } from "./compactor.js";
 
 import type { ResearchRoutingDecision } from "../phases/research-router.js";
+import type { TriageDecision } from "../phases/triage.js";
+import type { ExecutionJournal } from "../journal/execution-journal.js";
 
 export enum Phase {
   Inspect = "Inspect",
+  Triage = "Triage",
   Research = "Research",
   Diagnose = "Diagnose",
+  DiversityGate = "DiversityGate",
   Falsify = "Falsify",
   Implement = "Implement",
   Verify = "Verify",
@@ -72,6 +76,7 @@ export interface HarnessContext {
   codexManager?: CodexClientManager;
   compactor: ContextCompactor;
   budgetTracker: BudgetTracker;
+  executionJournal: ExecutionJournal;
 
   // Hermes-style Dynamic Memories & Skills
   repoInspection?: RepoInspection;
@@ -82,7 +87,9 @@ export interface HarnessContext {
   exportedTrajectoryPath?: string;
 
   // Artifacts produced along the ladder
+  triageDecision?: TriageDecision;
   researchRouting?: ResearchRoutingDecision;
+
   research?: ResearchBrief;
   diagnosis?: Diagnosis;
   diversityEvaluation?: DiversityEvaluation;

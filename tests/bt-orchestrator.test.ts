@@ -61,8 +61,12 @@ describe("HarnessOrchestrator (Behavior Tree)", () => {
 
     for (const record of finalState.traceLog) {
       expect(record.durationMs).toBeGreaterThanOrEqual(0);
+      if (record.nodeName.includes("RequireFastPath") || record.nodeName.includes("FastTrack")) {
+        continue;
+      }
       expect(record.status).toBe("SUCCESS");
     }
+
   });
 
   it("should approve next candidate in candidate queue without backtracking when first candidate is rejected", async () => {

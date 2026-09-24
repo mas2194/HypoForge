@@ -11,10 +11,12 @@ import {
 import type { HarnessContext } from "./context.js";
 import {
   inspectAction,
+  triageAction,
   researchAction,
   diagnoseAction,
-  falsifyAction,
   diversityGateAction,
+  falsifyAction,
+  fastImplementAction,
   implementAction,
   verifyAction,
   compareAction,
@@ -39,11 +41,12 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
     return enableTracing ? trace(node) : node;
   };
 
-  // Subtree: Diagnose -> Falsify -> DiversityGate -> Implement -> Verify -> Compare -> Review Gate
+  // Deep Subtree: Diagnose -> DiversityGate -> Falsify -> Implement -> Verify -> Compare -> Review Gate
+  // NOTE: DiversityGate strictly precedes Falsification. Survivors of counter-arguments are respected.
   const exploreAndValidateSubtree = sequence("Explore, Implement & Validate", [
     wrap(action("Diagnose", diagnoseAction)),
-    wrap(action("Falsify", falsifyAction)),
     wrap(action("DiversityGate", diversityGateAction)),
+    wrap(action("Falsify", falsifyAction)),
     wrap(action("Implement", implementAction)),
     wrap(action("Verify", verifyAction)),
     wrap(action("Compare", compareAction)),
@@ -71,12 +74,37 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
     }
   );
 
+  // Fast Track Subtree: Direct Implement -> Verify -> Compare -> Review
+  // If fast path fails at any point, Selector falls back to Deep Pipeline.
+  const fastTrackSubtree = sequence("FastTrack Execution", [
+    wrap(
+      guard(
+        (ctx) => ctx.triageDecision?.path === "FAST",
+        wrap(action("FastImplement", fastImplementAction)),
+        "RequireFastPath"
+      )
+    ),
+    wrap(action("Verify", verifyAction)),
+    wrap(action("Compare", compareAction)),
+    wrap(action("CleanRoomReview", cleanRoomReviewAction)),
+  ]);
+
+  const deepPipelineSubtree = sequence("Deep Exploration Pipeline", [
+    wrap(action("Research", researchAction)),
+    wrap(selfHealingLoop),
+  ]);
+
   // Root Pipeline Sequence
   return wrap(
     sequence("Autonomous Architecture Exploration Pipeline", [
       wrap(action("Inspect", inspectAction)),
-      wrap(action("Research", researchAction)),
-      wrap(selfHealingLoop),
+      wrap(action("Triage", triageAction)),
+      wrap(
+        selector("Fast / Deep Execution Path", [
+          wrap(fastTrackSubtree),
+          wrap(deepPipelineSubtree),
+        ])
+      ),
       wrap(action("Integrate", integrateAction)),
       wrap(
         optional(
@@ -94,3 +122,4 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
     ])
   );
 }
+

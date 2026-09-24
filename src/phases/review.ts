@@ -75,20 +75,29 @@ ${diffContent}
 \`\`\`
 
 Review this diff as an independent auditor.
+You CANNOT modify code; your role is strictly read-only audit.
 Respond strictly with a valid JSON object matching this schema:
 {
   "approved": boolean,
+  "failureClass": "IMPLEMENTATION_ERROR" | "FALSIFICATION_GAP" | "ROOT_CAUSE_ERROR" | "EXTERNAL_SPEC" | "REPO_MODEL_ERROR" | null,
   "blockingIssues": string[],
   "suggestions": string[],
   "feedback": "string"
 }
+Failure classes for rejections:
+- IMPLEMENTATION_ERROR: Localized syntax, compilation, off-by-one error (routable to Implement)
+- FALSIFICATION_GAP: Missed edge-case, unhandled boundary scenario (routable to Falsify)
+- ROOT_CAUSE_ERROR: Fundamental hypothesis flaw, architectural regression (routable to Diagnose)
+- EXTERNAL_SPEC: Third-party API mismatch or library limitation (routable to Research)
+- REPO_MODEL_ERROR: Invariant violation or repository topology misunderstanding (routable to Inspect)
 `.trim();
 
   if (codexManager) {
     try {
-      // Clean-room: start a completely brand new thread with no memory of implementation and strictly offline
+      // Clean-room: strictly read-only, offline, isolated thread with no implementation history
       const thread = codexManager.startWorkerThread({
         workingDirectory: options.repoPath ?? process.cwd(),
+        sandboxMode: "read-only",
         networkAccessEnabled: false,
         webSearchMode: "disabled",
       });
@@ -108,6 +117,7 @@ Respond strictly with a valid JSON object matching this schema:
   const approved = options.verification.tests.failed === 0 && options.verification.score > 0;
   return ReviewResultSchema.parse({
     approved,
+    failureClass: approved ? undefined : "IMPLEMENTATION_ERROR",
     blockingIssues: approved ? [] : ["Tests failed or negative score detected"],
     suggestions: [
       "Ensure all architectural invariants and regression tests remain documented.",

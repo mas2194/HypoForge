@@ -8,8 +8,17 @@ export interface CandidateTrajectoryRecord {
   rejectionReason?: string;
 }
 
+export type TrajectoryProvenance =
+  | "self_reviewed"
+  | "machine_verified"
+  | "ci_verified"
+  | "human_approved"
+  | "post_merge_success";
+
 export interface PreferencePair {
   prompt: string;
+  provenance: TrajectoryProvenance;
+  confidenceWeight: number;
   chosen: {
     candidateId: string;
     level: string | number;
@@ -31,8 +40,10 @@ export interface RunTrajectory {
   goal: string;
   timestamp: string;
   iteration: number;
+  provenance: TrajectoryProvenance;
   researchSummary?: string;
   candidates: CandidateTrajectoryRecord[];
   winnerCandidateId?: string;
   preferencePairs: PreferencePair[];
 }
+

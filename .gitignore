@@ -11,7 +11,7 @@ worktrees/
 .DS_Store
 Thumbs.db
 
-# Ephemeral agent run executions (ADR in .agent/decisions/ are kept)
-.agent/runs/
-.agent/trajectories/
-.agent/memory.db*
+# Ephemeral agent runtime artifacts and databases
+.agent/
+
+

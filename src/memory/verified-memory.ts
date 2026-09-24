@@ -4,10 +4,19 @@ import type { VerificationResult } from "../schemas/result.js";
 import type { CandidateImplementation } from "../schemas/candidate.js";
 import type { DurableMemoryManager } from "./durable-memory.js";
 
+export type MemoryProvenance =
+  | "MACHINE_VERIFIED"
+  | "REVIEW_VERIFIED"
+  | "CI_VERIFIED"
+  | "HUMAN_APPROVED"
+  | "MERGED"
+  | "POST_MERGE_STABLE";
+
 export interface VerifiedMemoryRecord {
   id: string;
   runId: string;
   claim: string;
+  provenance: MemoryProvenance;
   evidence: {
     testsPassed: number;
     testsFailed: number;
@@ -23,12 +32,46 @@ export interface VerifiedMemoryRecord {
   interventionLevel: string;
   confidence: number;
   validityScope: string;
+  validForRepoSha?: string;
+  validForDependencyVersion?: string;
+  expiresAt?: string;
+  supersededBy?: string;
   verifiedAt: string;
 }
 
 /**
- * Creates and persists verified memory entries.
- * Strictly separates empirical, machine-validated facts from subjective LLM thoughts.
+ * Checks whether a verified memory record is stale due to commit drift,
+ * dependency upgrades, expiration, or being superseded by a newer ADR.
+ */
+export function isMemoryStale(
+  record: VerifiedMemoryRecord,
+  context?: {
+    currentRepoSha?: string;
+    currentDependencyVersion?: string;
+    currentTime?: Date;
+  }
+): boolean {
+  if (record.supersededBy) return true;
+
+  const now = context?.currentTime ?? new Date();
+  if (record.expiresAt && new Date(record.expiresAt) < now) {
+    return true;
+  }
+
+  if (
+    context?.currentDependencyVersion &&
+    record.validForDependencyVersion &&
+    context.currentDependencyVersion !== record.validForDependencyVersion
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Creates and persists verified memory entries with provenance tracking.
+ * Strictly separates empirical, machine-validated facts and reviewed ADRs from ephemeral thoughts.
  */
 export async function createAndSaveVerifiedMemory(options: {
   runId: string;
@@ -37,8 +80,23 @@ export async function createAndSaveVerifiedMemory(options: {
   implementation: CandidateImplementation;
   verification: VerificationResult;
   memoryManager: DurableMemoryManager;
+  provenance?: MemoryProvenance;
+  validForRepoSha?: string;
+  validForDependencyVersion?: string;
+  expiresAt?: string;
 }): Promise<VerifiedMemoryRecord> {
-  const { runId, goal, repoRoot, implementation, verification, memoryManager } = options;
+  const {
+    runId,
+    goal,
+    repoRoot,
+    implementation,
+    verification,
+    memoryManager,
+    provenance = "MACHINE_VERIFIED",
+    validForRepoSha,
+    validForDependencyVersion,
+    expiresAt,
+  } = options;
 
   const id = `verified-${Date.now()}`;
   const claim = `Successfully verified ${implementation.level} solution for '${goal}' with 0 test failures and zero regressions.`;
@@ -52,6 +110,7 @@ export async function createAndSaveVerifiedMemory(options: {
     id,
     runId,
     claim,
+    provenance,
     evidence: {
       testsPassed: verification.tests.passed,
       testsFailed: verification.tests.failed,
@@ -67,21 +126,27 @@ export async function createAndSaveVerifiedMemory(options: {
     interventionLevel: implementation.level,
     confidence,
     validityScope: `Repository: ${path.basename(repoRoot)}, Target Branch: ${implementation.branchName}`,
+    validForRepoSha,
+    validForDependencyVersion,
+    expiresAt,
     verifiedAt: new Date().toISOString(),
   };
 
   // 1. Save artifact to run directory
   await memoryManager.saveArtifact(runId, "verified-memory.json", verifiedRecord);
 
-  // 2. Index in SQLite FTS5 as verified knowledge entry
+  // 2. Index in SQLite FTS5 as verified knowledge entry with provenance tag
   memoryManager.ftsIndex.insert({
     id: verifiedRecord.id,
     runId,
     type: "verified_claim",
-    title: `[VERIFIED] ${implementation.level}: ${goal.slice(0, 50)}`,
-    content: `${verifiedRecord.claim} Evidence: ${verifiedRecord.evidence.testsPassed} tests passed, 0 failures. Validity: ${verifiedRecord.validityScope}`,
+    title: `[VERIFIED] [${provenance}] ${implementation.level}: ${goal.slice(0, 50)}`,
+    content: `${verifiedRecord.claim} [Provenance: ${provenance}] Evidence: ${verifiedRecord.evidence.testsPassed} tests passed, 0 failures. Validity: ${verifiedRecord.validityScope}`,
     createdAt: verifiedRecord.verifiedAt,
   });
 
+
+
   return verifiedRecord;
 }
+

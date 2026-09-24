@@ -53,6 +53,8 @@ export class TrajectoryExporter {
         if (cand.candidateId !== winner.implementation.candidateId) {
           preferencePairs.push({
             prompt: ctx.goal,
+            provenance: "machine_verified",
+            confidenceWeight: 1.0,
             chosen: {
               candidateId: winner.implementation.candidateId,
               level: winner.implementation.level,
@@ -81,11 +83,13 @@ export class TrajectoryExporter {
       goal: ctx.goal,
       timestamp: new Date().toISOString(),
       iteration: ctx.iteration,
+      provenance: "machine_verified",
       researchSummary,
       candidates,
       winnerCandidateId: ctx.winner?.implementation.candidateId,
       preferencePairs,
     };
+
   }
 
   async exportRunTrajectory(ctx: HarnessContext): Promise<string> {

@@ -3,12 +3,20 @@ export interface BudgetLimits {
   maxCandidates: number;
   wallClockBudgetMs: number;
   maxTestRuns: number;
+  maxTokens: number;
+  maxResearchCalls: number;
+  maxReviewCalls: number;
+  maxBacktracksPerPhase: number;
 }
 
 export interface BudgetUsage {
   iterations: number;
   candidatesEvaluated: number;
   testRuns: number;
+  tokensConsumed: number;
+  researchCalls: number;
+  reviewCalls: number;
+  backtracksByPhase: Record<string, number>;
   startTimeMs: number;
   elapsedMs: number;
 }
@@ -25,6 +33,10 @@ export const DEFAULT_BUDGET_LIMITS: BudgetLimits = {
   maxCandidates: 8,
   wallClockBudgetMs: 15 * 60 * 1000, // 15 minutes default
   maxTestRuns: 16,
+  maxTokens: 500_000,
+  maxResearchCalls: 3,
+  maxReviewCalls: 6,
+  maxBacktracksPerPhase: 3,
 };
 
 export class BudgetTracker {
@@ -33,6 +45,10 @@ export class BudgetTracker {
   private iterations = 1;
   private candidatesEvaluated = 0;
   private testRuns = 0;
+  private tokensConsumed = 0;
+  private researchCalls = 0;
+  private reviewCalls = 0;
+  private backtracksByPhase: Record<string, number> = {};
 
   constructor(limits?: Partial<BudgetLimits>) {
     this.limits = {
@@ -54,12 +70,32 @@ export class BudgetTracker {
     this.testRuns += 1;
   }
 
+  recordTokens(tokens: number): void {
+    this.tokensConsumed += tokens;
+  }
+
+  recordResearchCall(): void {
+    this.researchCalls += 1;
+  }
+
+  recordReviewCall(): void {
+    this.reviewCalls += 1;
+  }
+
+  recordBacktrack(phase: string): void {
+    this.backtracksByPhase[phase] = (this.backtracksByPhase[phase] || 0) + 1;
+  }
+
   getUsage(): BudgetUsage {
     const now = Date.now();
     return {
       iterations: this.iterations,
       candidatesEvaluated: this.candidatesEvaluated,
       testRuns: this.testRuns,
+      tokensConsumed: this.tokensConsumed,
+      researchCalls: this.researchCalls,
+      reviewCalls: this.reviewCalls,
+      backtracksByPhase: { ...this.backtracksByPhase },
       startTimeMs: this.startTimeMs,
       elapsedMs: now - this.startTimeMs,
     };
@@ -99,6 +135,44 @@ export class BudgetTracker {
       };
     }
 
+    if (usage.tokensConsumed > this.limits.maxTokens) {
+      return {
+        exhausted: true,
+        reason: `Token consumption budget exhausted (${usage.tokensConsumed} > ${this.limits.maxTokens})`,
+        usage,
+        limits: this.limits,
+      };
+    }
+
+    if (usage.researchCalls > this.limits.maxResearchCalls) {
+      return {
+        exhausted: true,
+        reason: `Research call budget exhausted (${usage.researchCalls} > ${this.limits.maxResearchCalls})`,
+        usage,
+        limits: this.limits,
+      };
+    }
+
+    if (usage.reviewCalls > this.limits.maxReviewCalls) {
+      return {
+        exhausted: true,
+        reason: `Review audit call budget exhausted (${usage.reviewCalls} > ${this.limits.maxReviewCalls})`,
+        usage,
+        limits: this.limits,
+      };
+    }
+
+    for (const [phase, count] of Object.entries(usage.backtracksByPhase)) {
+      if (count > this.limits.maxBacktracksPerPhase) {
+        return {
+          exhausted: true,
+          reason: `Backtrack limit exceeded for phase '${phase}' (${count} > ${this.limits.maxBacktracksPerPhase})`,
+          usage,
+          limits: this.limits,
+        };
+      }
+    }
+
     if (usage.elapsedMs > this.limits.wallClockBudgetMs) {
       return {
         exhausted: true,
@@ -115,3 +189,4 @@ export class BudgetTracker {
     };
   }
 }
+

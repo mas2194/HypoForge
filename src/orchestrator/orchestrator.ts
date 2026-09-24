@@ -12,7 +12,10 @@ import { Phase, type HarnessContext } from "./context.js";
 
 import { BudgetTracker, type BudgetLimits } from "../budget/tracker.js";
 
+import { ExecutionJournal } from "../journal/execution-journal.js";
+
 export interface OrchestratorOptions {
+
   goal: string;
   repoRoot?: string;
   testCommand?: string;
@@ -71,7 +74,9 @@ export class HarnessOrchestrator {
       codexManager,
       compactor: new ContextCompactor(),
       budgetTracker,
+      executionJournal: new ExecutionJournal(options.repoRoot ? `${options.repoRoot}/.agent/journal` : undefined),
       recalledMemories: [],
+
       activeSkills: [],
       implementations: [],
       verifications: [],

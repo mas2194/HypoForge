@@ -1122,9 +1122,9 @@ agent/architecture/<topic>
 
 ---
 
-## 最終的に目指すべきループ（実装完了）
+## 最終的に目指すべき基準アーキテクチャ（完全実装済み）
 
-本リポジトリでは、エキスパートレビューと実証検証に基づき、単なる「最小変更に逃げるスクリプト」を排し、仮説探索・反証・機械的検証・ブラインド査読を行う**自律型ソフトウェア工学ハーネス（Autonomous Software Engineering Harness）**を完全実装しました。
+本リポジトリでは、エキスパートレビューと実証検証に基づき、単なる「最小変更に逃げるスクリプト」を排し、仮説探索・反証・機械的検証・ブラインド査読を行う**自律型ソフトウェア工学ハーネス（Autonomous Software Engineering Harness）**の完成形を実装しました。
 
 ```text
 Goal
@@ -1139,76 +1139,92 @@ Problem Signature Generation (Anti-Memory Anchoring)
 Memory / Skill Retrieval (Signature-targeted FTS5)
   │
   ▼
-Research Router ───────────────→ Research (network=true, webSearch=live)
-  │                                    │
-  └────────────────────────────────────┘
-  │
-  ▼
-Diagnose (Intervention Ladder L0〜L7 & Structured Evidence Output)
-  ├── L1 local patch
-  ├── L4 state / data model
-  └── L6 architectural redesign
-  │
-  ▼
-Falsification (Counter-argument Scrutiny)
-  │
-  ▼
-Hypothesis Diversity Gate (Enforces Non-homogeneous Exploration Radii)
-  │
-  ▼
-Parallel Worktrees (Isolated Git Worktrees A / B / C)
-  │
-  ▼
-Machine Verification (Process Exit Code, JUnit, Regressions, Complexity)
-  │
-  ▼
-Hard Gates (Zero tolerance for test failures or regressions)
-  │
-  ▼
-Pareto / Lexicographic Comparison (Multi-objective soft metrics vs Candidate 0 Baseline)
-  │
-  ▼
-Candidate Queue [C1, C2, ..., Cn]
-  │
-  ▼
-Clean-Room Blind Review (Anonymous Candidate X / Strict Offline Audit)
-  ├── REJECT → Next candidate in queue available?
-  │             ├── YES → Review next candidate immediately (No backtracking!)
-  │             └── NO  → All candidates exhausted
-  │                         │
-  │                         ▼
-  │                   Backtrack Router (Intelligent Multi-Tier Recovery)
-  │                   ├── Syntax/Typo        → Implement
-  │                   ├── Counterexample     → Falsify
-  │                   ├── Architectural Flaw → Diagnose
-  │                   ├── API Spec Mismatch  → Research
-  │                   └── Invariant Error    → Inspect
-  │
-  └── APPROVED
-        │
-        ▼
-Integration Verification (Merge branch to active workspace)
-  │
-  ▼
-Publish (GitHub Broker Pull Request)
-  │
-  ▼
-Verified Learning & Context Compaction
-  ├── Record ADR (Architecture Decision Record)
-  ├── Crystallize Reusable Procedural Skills
-  ├── Persist Verified Memory (Empirical facts only; no LLM thoughts)
-  └── Export Preference Trajectories (DPO-compatible)
+Fast / Deep Triage ─────────────────────────┐
+  │ FAST                                     │ DEEP
+  ▼                                          ▼
+FastImplement (Single Local Worktree)      Research Router (network=true, webSearch=live)
+  │                                          │
+  ▼                                          ▼
+Independent Verify                         Diagnose (L0〜L7 Intervention Ladder)
+  │                                          │
+  ▼                                          ▼
+  │                                       Diversity Gate (Guarantees orthogonal hypotheses)
+  │                                          │
+  ▼                                          ▼
+  │                                       Falsification (Counter-argument scrutiny & survivors)
+  │                                          │
+  ▼                                          ▼
+  │                                       Parallel Worktrees (Isolated Git Worktrees A / B / C)
+  │                                          │
+  ▼                                          ▼
+  │                                       Test & Oracle Integrity Gate (Anti-cheating / Protected)
+  │                                          │
+  ▼                                          ▼
+  │                                       Machine Verification (Process Exit Code, Regressions)
+  │                                          │
+  ▼                                          ▼
+  │                                       Per-candidate Hard Gate (Zero tolerance filter)
+  │                                          │
+  ▼                                          ▼
+  │                                       Pareto / Lexicographic Sort (Correctness > Perf > Simplicity)
+  │                                          │
+  ▼                                          ▼
+  │                                       Candidate Queue [C1, C2, ..., Cn]
+  │                                          │
+  ▼                                          ▼
+  └───────────────────────────────→ Clean-Room Review (sandboxMode: "read-only", offline)
+                                     │
+                                     ├── REJECT → Next candidate in queue available?
+                                     │             ├── YES → Review next candidate immediately
+                                     │             └── NO  → All candidates exhausted
+                                     │                         │
+                                     │                         ▼
+                                     │                   Backtrack Router (Structured FailureClass)
+                                     │                   ├── IMPLEMENTATION_ERROR → Implement
+                                     │                   ├── FALSIFICATION_GAP    → Falsify
+                                     │                   ├── ROOT_CAUSE_ERROR     → Diagnose
+                                     │                   ├── EXTERNAL_SPEC        → Research
+                                     │                   └── REPO_MODEL_ERROR     → Inspect
+                                     │
+                                     └── APPROVED
+                                           │
+                                           ▼
+                                    Integration Verification (Merge branch to active workspace)
+                                           │
+                                           ▼
+                                    Publish (GitHub Broker Pull Request)
+                                           │
+                                           ▼
+                                    Remote CI Outcome & Provenance Memory
+                                    ├── Record ADR (Architecture Decision Record)
+                                    ├── Crystallize Reusable Procedural Skills
+                                    ├── Persist Provenance Memory (MACHINE_VERIFIED, invalidation bounds)
+                                    └── Export Preference Trajectories (DPO-compatible with weights)
 ```
 
-### 実装済みのコア機構
-1. **Candidate Queue**: 1位候補がリジェクトされた場合でも全体を破棄せず、同一イテレーション内で次順位の候補を自動査読。無駄な再探索コストを激減。
-2. **Hard Gates & Pareto / Lexicographic 比較**: 単一スカラー評価によるGoodhartの法則崩壊を排除。客観的テスト・リグレッションゼロを必須足切りとし、Intervention Level $\rightarrow$ 性能改善 $\rightarrow$ 差分簡潔性の辞書式順序で評価。Candidate 0（mainブランチ）を常時参戦させて変更不要時の撤退判断を保証。
-3. **Clean-Room Review の完全匿名化**: Candidate ID や事前スコアを剥奪した「Anonymous Candidate X」としてブラインド査読。オフラインサンドボックス（network=false）を強制。
-4. **Research Router**: 性能限界、並行性、未知のアルゴリズム、アーキテクチャ再設計などの高不確実性シグナルがある場合のみWeb調査を発動。
-5. **Intervention Ladder L0〜L7 & Hypothesis Diversity Gate**: 設定から要求前提まで8段階の階層を持ち、並列候補が局所修正ばかりに偏る擬似多様性を機械的に排除。
-6. **Backtrack Router**: 失敗モードに応じた階層的ロールバック（Implement/Falsify/Diagnose/Research/Inspect）。
-7. **探索 Budget Tracker**: イテレーション数、候補数、テスト回数、実行時間を第一級状態として監視。予算超過時は安全に `UNRESOLVED` 終了。
-8. **Verified Memory & Anti-Anchoring Inspect**: リポジトリ構造から Problem Signature を先行生成して先入観による誤認（Memory Anchoring）を防止し、確定事実のみを SQLite FTS5 に永続化。
+> **全体を保護・統制する3大インフラ:**
+> 1. **Budget Governor**: Iterations, Candidates, Test Runs, Tokens, Research, Review, Phase Backtracks, Wall-clock Timeout を多次元管理。
+> 2. **Execution Journal**: クラッシュ復旧・プロセス再開を保証する冪等なログ追跡（SQLite/JSONL）。
+> 3. **GitHub Broker**: 最小権限 GitHub App トークン仲介とブランチ保護。
+
+### 実装済みのコア機構（8大刷新）
+1. **Diversity Gate の位置是正（反証前に配置）**:
+   多様な説明（L1〜L6、異なる探索戦略）を反証**前**に保証。反証後に生き残った候補（Survivors）がL1のみであれば健全な科学的収束として尊重し、無理な再生成を行わない。
+2. **Intervention Level を目的関数から排除（最大介入バイアスの防止）**:
+   Intervention Levelは「どこまで疑ったか」のメタデータタグに留め、辞書式順序では `Correctness (Hard Gate)` $\succ$ `Performance Improvement` $\succ$ `Simplicity (少ない変更行数 / 低churn)` を採用。同じ効果なら30行のL1パッチが800行のL6書き換えに勝つ（オッカムの剃刀）。
+3. **Test & Oracle Integrity Gate（チート防止）**:
+   Agentが `it.skip`、eslint 無効化、CI step削除、assertion 弱体化でテストを誤魔化す行為を機械的に検出。baseline の test/config を protected oracle として保護。
+4. **Clean-Room Reviewer の完全 Read-Only 化**:
+   Reviewer のスレッドに `sandboxMode: "read-only"` を強制。コード修正権限を剥奪し、純粋なブラインド監査（Anonymous Candidate X）に専念させる。
+5. **Structured Backtrack Classification**:
+   Reviewer の出力に `FailureClass`（`IMPLEMENTATION_ERROR`, `FALSIFICATION_GAP`, `ROOT_CAUSE_ERROR`, `EXTERNAL_SPEC`, `REPO_MODEL_ERROR`）を義務付け、正規表現に依存しない決定論的ロールバックを実現。
+6. **Fast Path / Deep Path の動的トリアージ**:
+   Problem Signature とトポロジーから不確実性を評価。typoやnull check等の局所タスクは即座に Fast Track（Implement $\rightarrow$ Verify $\rightarrow$ Review）で高速実行し、失敗時に自動昇格（Escalate）。
+7. **Execution Journal & Crash Recovery**:
+   長時間処理でのプロセス停止・クラッシュに備え、フェーズ開始・完了・失敗、スレッドID、予算状態を永続化。未完了フェーズからの安全な再開を保証。
+8. **Memory Provenance & Stale Invalidation**:
+   記憶に `MACHINE_VERIFIED`, `REVIEW_VERIFIED`, `CI_VERIFIED`, `HUMAN_APPROVED` 等の出所（Provenance）を付与。さらに `valid_for_repo_sha`, `valid_for_dependency_version`, `expires_at`, `superseded_by` を持たせ、古い事実の永久固定化を防ぐ。
+
 
 [1]: https://github.com/openai/codex/blob/main/sdk/typescript/README.md?utm_source=chatgpt.com "codex/sdk/typescript/README.md at main · openai/codex · GitHub"
 [2]: https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra?utm_source=chatgpt.com "Rethinking skills and prompts for GPT-6 Astra | OpenAI Developers"

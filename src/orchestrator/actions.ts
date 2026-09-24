@@ -8,15 +8,19 @@ import { runImplementPhase } from "../phases/implement.js";
 import { runCleanRoomReviewPhase } from "../phases/review.js";
 import type { CandidateImplementation } from "../schemas/candidate.js";
 import type { VerificationResult } from "../schemas/result.js";
+import type { CandidateHypothesis } from "../schemas/diagnosis.js";
 import { routeResearch } from "../phases/research-router.js";
+
 import { evaluateDiversity, enforceDiversity } from "../phases/diversity-gate.js";
 import { routeBacktrack } from "./backtrack-router.js";
 import { inspectRepository, generateProblemSignature } from "../phases/inspect-repo.js";
 import { createAndSaveVerifiedMemory } from "../memory/verified-memory.js";
+import { triageExecutionPath } from "../phases/triage.js";
 
 export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Inspect;
   console.log(`[Phase: Inspect] Initializing run ${ctx.runId} for goal: "${ctx.goal}"`);
+  await ctx.executionJournal.recordPhaseStart(ctx.runId, "Inspect", ctx.iteration);
   await ctx.memoryManager.initRun(ctx.runId, {
     goal: ctx.goal,
     timestamp: new Date().toISOString(),
@@ -58,8 +62,38 @@ export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
     }
   }
 
+  await ctx.executionJournal.recordPhaseComplete(ctx.runId, "Inspect", ctx.iteration);
   return "SUCCESS";
 }
+
+export async function triageAction(ctx: HarnessContext): Promise<NodeStatus> {
+  ctx.phase = Phase.Triage;
+  const inspection = ctx.repoInspection ?? {
+    recentGitHistory: [],
+    changedFiles: [],
+    keyDependencies: [],
+    targetSubsystems: [],
+    repoLanguage: "typescript",
+  };
+  const signature = ctx.problemSignature ?? {
+    signatureId: `sig-${Date.now()}`,
+    domain: "core",
+    relevantModules: [],
+    searchTerms: ctx.goal,
+  };
+
+  const decision = triageExecutionPath(ctx.goal, inspection, signature);
+  ctx.triageDecision = decision;
+
+  console.log(
+    `[Phase: Triage] Evaluated execution path: '${decision.path}' (Confidence: ${(decision.confidence * 100).toFixed(0)}%)`
+  );
+  console.log(`[Phase: Triage] Reason: ${decision.reason}`);
+  await ctx.executionJournal.recordPhaseComplete(ctx.runId, "Triage", ctx.iteration, { decision });
+
+  return "SUCCESS";
+}
+
 
 export async function researchAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Research;
@@ -114,6 +148,31 @@ export async function diagnoseAction(ctx: HarnessContext): Promise<NodeStatus> {
   return "SUCCESS";
 }
 
+export async function diversityGateAction(ctx: HarnessContext): Promise<NodeStatus> {
+
+  ctx.phase = Phase.DiversityGate;
+  if (!ctx.diagnosis || ctx.diagnosis.candidates.length === 0) {
+    return "FAILURE";
+  }
+
+  const evalResult = evaluateDiversity(ctx.diagnosis.candidates);
+  ctx.diversityEvaluation = evalResult;
+
+  if (evalResult.passed) {
+    console.log(`[Phase: DiversityGate] ${evalResult.reason}`);
+    return "SUCCESS";
+  }
+
+  console.warn(`[Phase: DiversityGate] Insufficient candidate diversity: ${evalResult.reason}`);
+  console.log(`[Phase: DiversityGate] Enforcing architectural diversity across candidates prior to falsification...`);
+
+  ctx.diagnosis.candidates = enforceDiversity(ctx.diagnosis.candidates);
+  const reEval = evaluateDiversity(ctx.diagnosis.candidates);
+  ctx.diversityEvaluation = reEval;
+  console.log(`[Phase: DiversityGate] Diversity enforced: ${reEval.reason}`);
+  return "SUCCESS";
+}
+
 export async function falsifyAction(ctx: HarnessContext): Promise<NodeStatus> {
   if (!ctx.diagnosis) {
     console.error("[Phase: Falsify] Diagnosis missing for falsification");
@@ -129,6 +188,7 @@ export async function falsifyAction(ctx: HarnessContext): Promise<NodeStatus> {
     },
     ctx.codexManager
   );
+  // Survivors of falsification scrutiny
   ctx.falsifiedCandidates = candidates.filter((c) => c.worthExperimenting);
   ctx.falsificationReviews = reviews;
 
@@ -150,29 +210,37 @@ export async function falsifyAction(ctx: HarnessContext): Promise<NodeStatus> {
   return "SUCCESS";
 }
 
-export async function diversityGateAction(ctx: HarnessContext): Promise<NodeStatus> {
-  const candidates = ctx.falsifiedCandidates ?? ctx.diagnosis?.candidates ?? [];
-  if (candidates.length === 0) {
-    return "FAILURE";
+export async function fastImplementAction(ctx: HarnessContext): Promise<NodeStatus> {
+  if (ctx.triageDecision?.path !== "FAST") {
+    return "SUCCESS"; // pass-through for non-fast paths
   }
 
-  const evalResult = evaluateDiversity(candidates);
-  ctx.diversityEvaluation = evalResult;
+  ctx.phase = Phase.Implement;
+  console.log(`[Phase: Implement (FastPath)] Spawning single localized worktree for fast path execution...`);
 
-  if (evalResult.passed) {
-    console.log(`[Phase: DiversityGate] ${evalResult.reason}`);
-    return "SUCCESS";
-  }
+  const fastCandidate: CandidateHypothesis = {
+    id: "cand-fast",
+    level: "L1_function_implementation",
+    levelNumber: 1,
+    hypothesis: `[FastPath] Direct localized fix for: ${ctx.goal}`,
+    strategy: "local_patch",
+    experiment: "Direct targeted patch",
+    worthExperimenting: true,
+    evidenceFor: ["Routine localized task identified by Triage"],
+    evidenceAgainst: [],
+  };
 
-  console.warn(`[Phase: DiversityGate] Insufficient candidate diversity: ${evalResult.reason}`);
-  console.log(`[Phase: DiversityGate] Enforcing architectural diversity across candidates...`);
+  ctx.budgetTracker.recordCandidates(1);
+  ctx.implementations = await runImplementPhase({
+    candidates: [fastCandidate],
+    worktreeManager: ctx.worktreeManager,
+    codexManager: ctx.codexManager,
+    runId: ctx.runId,
+  });
 
-  ctx.falsifiedCandidates = enforceDiversity(candidates);
-  const reEval = evaluateDiversity(ctx.falsifiedCandidates);
-  ctx.diversityEvaluation = reEval;
-  console.log(`[Phase: DiversityGate] Diversity enforced: ${reEval.reason}`);
   return "SUCCESS";
 }
+
 
 export async function implementAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Implement;
@@ -274,9 +342,11 @@ export async function compareAction(ctx: HarnessContext): Promise<NodeStatus> {
       noRegressions: true,
       typecheckPassed: true,
       lintPassed: true,
+      testIntegrityPassed: true,
       passedAll: true,
       failureReasons: [],
     },
+
     softMetrics: {
       performanceImprovementPercent: 0,
       complexityDelta: 0,
@@ -409,13 +479,15 @@ export async function captureRejectionFeedbackAction(ctx: HarnessContext): Promi
     ...ctx.rejectionFeedbacks,
     ...(ctx.review?.blockingIssues ?? []),
   ];
-  const decision = routeBacktrack(allRejectionReasons);
+  const decision = routeBacktrack(allRejectionReasons, ctx.review?.failureClass);
   ctx.backtrackDecision = decision;
+  ctx.budgetTracker.recordBacktrack(decision.target);
 
   console.log(
     `[BT:BacktrackRouter] Diagnosed failure mode: '${decision.failureMode}' -> Routing recovery to [Phase: ${decision.target}]`
   );
   console.log(`[BT:BacktrackRouter] Action: ${decision.recommendedAction}`);
+
 
   // Clean worktrees to prepare for retry
   try {
@@ -502,6 +574,7 @@ export async function learnAction(ctx: HarnessContext): Promise<NodeStatus> {
     // Verified Memory Persistence:
     // Strictly isolate empirical, machine-validated facts from subjective model thinking
     try {
+      const currentSha = ctx.repoInspection?.recentGitHistory[0]?.split(" ")[0];
       const verifiedRecord = await createAndSaveVerifiedMemory({
         runId: ctx.runId,
         goal: ctx.goal,
@@ -509,9 +582,12 @@ export async function learnAction(ctx: HarnessContext): Promise<NodeStatus> {
         implementation: ctx.winner.implementation,
         verification: ctx.winner.verification,
         memoryManager: ctx.memoryManager,
+        provenance: "MACHINE_VERIFIED",
+        validForRepoSha: currentSha,
       });
       ctx.verifiedMemory = verifiedRecord;
       console.log(`[Phase: Learn] Recorded Verified Memory in SQLite FTS5: [${verifiedRecord.id}] (Confidence: ${verifiedRecord.confidence})`);
+
     } catch (err) {
       console.warn("[Phase: Learn] Verified memory creation warning:", err);
     }

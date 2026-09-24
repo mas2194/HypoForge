@@ -50,10 +50,15 @@ describe("ResearchRouter", () => {
 
       expect(finalState.finished).toBe(true);
       expect(finalState.phase).toBe(Phase.Finished);
-      // Research should be skipped
-      expect(finalState.researchRouting?.shouldResearch).toBe(false);
+      // Research should be skipped either via fast path triage or research router
       expect(finalState.research).toBeUndefined();
+      if (finalState.triageDecision?.path === "FAST") {
+        expect(finalState.triageDecision.path).toBe("FAST");
+      } else {
+        expect(finalState.researchRouting?.shouldResearch).toBe(false);
+      }
     } finally {
+
       await manager.cleanAllWorktrees();
       if (createdRunId) {
         await fs.rm(path.resolve(".agent/runs", createdRunId), { recursive: true, force: true }).catch(() => {});

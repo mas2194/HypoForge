@@ -1,3 +1,5 @@
+import type { FailureClass } from "../schemas/result.js";
+
 export enum BacktrackTarget {
   Implement = "Implement", // Local implementation fix without re-diagnosing
   Falsify = "Falsify",     // Counter-argument and edge-case re-scrutiny
@@ -12,6 +14,38 @@ export interface BacktrackDecision {
   reason: string;
   recommendedAction: string;
 }
+
+const STRUCTURED_FAILURE_MAP: Record<FailureClass, {
+  target: BacktrackTarget;
+  failureMode: string;
+  recommendedAction: string;
+}> = {
+  IMPLEMENTATION_ERROR: {
+    target: BacktrackTarget.Implement,
+    failureMode: "Localized Implementation / Syntax Defect",
+    recommendedAction: "Fix localized syntax, typo, or compiler error directly in worktree.",
+  },
+  FALSIFICATION_GAP: {
+    target: BacktrackTarget.Falsify,
+    failureMode: "Uncaught Counterexample / Falsification Leak",
+    recommendedAction: "Subject candidate to more rigorous falsification tests and stress scenarios.",
+  },
+  ROOT_CAUSE_ERROR: {
+    target: BacktrackTarget.Diagnose,
+    failureMode: "Hypothesis / Architectural Root Cause Flaw",
+    recommendedAction: "Reformulate hypothesis across Intervention Ladder (L4-L6) with feedback.",
+  },
+  EXTERNAL_SPEC: {
+    target: BacktrackTarget.Research,
+    failureMode: "External Specification / Library Mismatch",
+    recommendedAction: "Conduct targeted research on external library behavior and modern SOTA patterns.",
+  },
+  REPO_MODEL_ERROR: {
+    target: BacktrackTarget.Inspect,
+    failureMode: "Invariant / Repository Model Violation",
+    recommendedAction: "Re-inspect repository dependency graph, AST, and invariants before proceeding.",
+  },
+};
 
 const BACKTRACK_PATTERNS: Array<{
   target: BacktrackTarget;
@@ -53,13 +87,27 @@ const BACKTRACK_PATTERNS: Array<{
 
 /**
  * Backtrack Router:
- * Inspects rejection feedback and diagnostic records to route backtracking
- * to the precise phase (Implement, Falsify, Diagnose, Research, or Inspect)
+ * Inspects structured rejection failureClass (primary) and rejection feedback text (fallback)
+ * to route backtracking to the precise phase (Implement, Falsify, Diagnose, Research, or Inspect)
  * rather than blindly restarting the entire pipeline from scratch.
  */
-export function routeBacktrack(rejectionReasons: string[]): BacktrackDecision {
-  const combined = rejectionReasons.join(" ");
+export function routeBacktrack(
+  rejectionReasons: string[],
+  failureClass?: FailureClass
+): BacktrackDecision {
+  // 1. Primary: Deterministic mapping from structured failureClass
+  if (failureClass && STRUCTURED_FAILURE_MAP[failureClass]) {
+    const entry = STRUCTURED_FAILURE_MAP[failureClass];
+    return {
+      target: entry.target,
+      failureMode: entry.failureMode,
+      reason: `Structured failureClass '${failureClass}' diagnosed by auditor`,
+      recommendedAction: entry.recommendedAction,
+    };
+  }
 
+  // 2. Fallback: Pattern match against rejection feedback text
+  const combined = rejectionReasons.join(" ");
   for (const { target, failureMode, pattern, recommendation } of BACKTRACK_PATTERNS) {
     if (pattern.test(combined)) {
       return {
@@ -71,7 +119,7 @@ export function routeBacktrack(rejectionReasons: string[]): BacktrackDecision {
     }
   }
 
-  // Default fallback: Diagnose
+  // 3. Default fallback: Diagnose
   return {
     target: BacktrackTarget.Diagnose,
     failureMode: "General Verification / Review Failure",
@@ -79,3 +127,4 @@ export function routeBacktrack(rejectionReasons: string[]): BacktrackDecision {
     recommendedAction: "Re-evaluate Intervention Ladder candidates with captured feedback.",
   };
 }
+
