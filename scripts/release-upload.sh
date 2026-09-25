@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RELEASE_DIR="$ROOT_DIR/release"
-TAG="v0.2.0"
+TAG="v0.2.1"
 REPO="mas2194/RefuteFlow"
 
 TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
@@ -28,45 +28,28 @@ echo "Release ID: $RELEASE_ID"
 # 1. Update Release Title and Body
 echo "==> Updating Release Title and Body..."
 RELEASE_BODY=$(cat << 'EOF'
-## RefuteFlow v0.2.0 - Standalone Executables (`rf`)
+## RefuteFlow v0.2.1 - Codex CLI startup fix
 
-Project renamed to **RefuteFlow** with the canonical CLI command **`rf`**.
-Now providing standalone standalone executables for both **macOS** and **Linux**!
+This patch fixes Codex SDK startup in bundled builds. RefuteFlow now uses `CODEX_CLI_PATH` or a Codex CLI already available on `PATH`, with the SDK-bundled CLI as fallback.
 
 ### Features
-- **Project Name & Binary**: Renamed to **RefuteFlow**, executable command is **`rf`**.
-- **Zero Runtime Dependencies**: Packaged with Node.js v22 LTS runtime via Single Executable Applications (SEA). No external Node.js, pnpm, or npm installation required.
-- **Cross-Platform Standalone Binaries**:
-  - **macOS**: Universal binary supporting both Apple Silicon (`arm64`: M1–M4) and Intel (`x86_64`) Macs.
-  - **Linux**: Native standalone binaries for `x86_64` (Intel/AMD) and `arm64` (aarch64).
-- **Embedded Prompts**: Core architecture, falsifier, implementer, researcher, and clean-room audit prompts are embedded directly into the binary.
+- **Codex CLI override**: Set `CODEX_CLI_PATH` when the CLI is installed outside the SDK package.
+- **PATH discovery**: A Codex CLI already on `PATH` is used automatically, fixing standalone bundled startup.
 
 ### Assets
-- `rf-darwin-universal.tar.gz`: Universal macOS binary (arm64 + x86_64)
-- `rf-darwin-arm64.tar.gz`: Apple Silicon Mac binary (arm64)
-- `rf-darwin-x64.tar.gz`: Intel Mac binary (x86_64)
 - `rf-linux-x64.tar.gz`: Linux x86_64 (64-bit Intel/AMD) binary
 - `rf-linux-arm64.tar.gz`: Linux arm64 (aarch64) binary
-- `SHA256SUMS.txt`: SHA-256 integrity checksums for all assets
+- `SHA256SUMS.txt`: SHA-256 integrity checksums for Linux assets
 
 ### Installation & Quick Start
-
-#### macOS (Apple Silicon & Intel)
-```bash
-curl -fsSL https://github.com/mas2194/RefuteFlow/releases/download/v0.2.0/rf-darwin-universal.tar.gz | tar -xz
-chmod +x rf
-sudo mv rf /usr/local/bin/
-
-rf /help
-```
 
 #### Linux (x86_64 / arm64)
 ```bash
 # For Linux x86_64:
-curl -fsSL https://github.com/mas2194/RefuteFlow/releases/download/v0.2.0/rf-linux-x64.tar.gz | tar -xz
+curl -fsSL https://github.com/mas2194/RefuteFlow/releases/download/v0.2.1/rf-linux-x64.tar.gz | tar -xz
 
 # For Linux arm64:
-# curl -fsSL https://github.com/mas2194/RefuteFlow/releases/download/v0.2.0/rf-linux-arm64.tar.gz | tar -xz
+# curl -fsSL https://github.com/mas2194/RefuteFlow/releases/download/v0.2.1/rf-linux-arm64.tar.gz | tar -xz
 
 chmod +x rf
 sudo mv rf /usr/local/bin/
@@ -92,7 +75,7 @@ url = f'https://api.github.com/repos/$REPO/releases/$RELEASE_ID'
 token = os.environ['TOKEN']
 body = '''$RELEASE_BODY'''
 data = json.dumps({
-    'name': 'v0.2.0 - RefuteFlow (rf) Standalone Executables (macOS & Linux)',
+    'name': 'v0.2.1 - RefuteFlow Codex CLI startup fix',
     'body': body
 }).encode('utf-8')
 

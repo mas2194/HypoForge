@@ -124,16 +124,7 @@ package_tarball "rf-linux-arm64" "$RELEASE_DIR/rf-linux-arm64"
 cd "$RELEASE_DIR"
 sha256sum rf-linux-* > SHA256SUMS-linux.txt
 
-# Merge with macOS checksums if available
-if [ -f "SHA256SUMS-darwin.txt" ]; then
-  cat SHA256SUMS-darwin.txt SHA256SUMS-linux.txt | sort -k2 > SHA256SUMS.txt
-elif curl -fsSL -o /tmp/SHA256SUMS-upstream.txt https://github.com/mas2194/RefuteFlow/releases/download/v0.2.0/SHA256SUMS.txt 2>/dev/null; then
-  # Filter out any existing linux entries and merge
-  grep -v "rf-linux-" /tmp/SHA256SUMS-upstream.txt > SHA256SUMS-darwin.txt || true
-  cat SHA256SUMS-darwin.txt SHA256SUMS-linux.txt | sort -k2 > SHA256SUMS.txt
-else
-  cp SHA256SUMS-linux.txt SHA256SUMS.txt
-fi
+cp SHA256SUMS-linux.txt SHA256SUMS.txt
 
 echo "=== Linux Build Complete! ==="
 ls -lh "$RELEASE_DIR"

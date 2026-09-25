@@ -389,6 +389,8 @@ Edit `.env`:
 # LLM / Codex Configuration
 # When logged in via `codex login` (ChatGPT OAuth), OPENAI_API_KEY is not required.
 USE_CODEX=true
+# Optional: path to a separately installed Codex CLI (useful for bundled builds).
+# CODEX_CLI_PATH=/usr/local/bin/codex
 # OPENAI_API_KEY=your_openai_api_key_here
 OPENAI_MODEL=gpt-6-luna
 

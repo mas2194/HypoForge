@@ -393,6 +393,8 @@ cp .env.example .env
 # LLM / Codex 設定
 # `codex login` 済み（ChatGPT OAuth）の場合は OPENAI_API_KEY の設定は不要です
 USE_CODEX=true
+# 任意: バンドル版で使う Codex CLI のパスを指定します。
+# CODEX_CLI_PATH=/usr/local/bin/codex
 # OPENAI_API_KEY=your_openai_api_key_here
 OPENAI_MODEL=gpt-6-luna
 
