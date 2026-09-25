@@ -362,6 +362,7 @@ GITHUB_TARGET_REPO=
 # Execution Configuration
 MAX_PARALLEL_EXPERIMENTS=3
 WORKTREES_DIR=./worktrees
+# Optional: leave unset to let each candidate agent choose useful checks.
 HARNESS_TEST_COMMAND="npm test"
 ```
 

@@ -4,7 +4,7 @@ import type { NodeStatus } from "../bt/types.js";
 import { runResearchPhase } from "../phases/research.js";
 import { runArchitectPhase } from "../phases/architect.js";
 import { runFalsifyPhase } from "../phases/falsify.js";
-import { runImplementPhase } from "../phases/implement.js";
+import { repairFailedCandidates, runImplementPhase } from "../phases/implement.js";
 import { runCleanRoomReviewPhase } from "../phases/review.js";
 import type { CandidateImplementation } from "../schemas/candidate.js";
 import type { VerificationResult } from "../schemas/result.js";
@@ -23,6 +23,10 @@ import {
   emitSubAgentLog,
   emitSubAgentFinish,
 } from "../server/events.js";
+
+function effectiveTestCommand(ctx: HarnessContext): string | undefined {
+  return ctx.testCommand;
+}
 
 export async function inspectAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Inspect;
@@ -623,33 +627,29 @@ import { compareWithPareto } from "../evaluator/pareto.js";
 
 export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
   ctx.phase = Phase.Verify;
-  emitPhaseChange(ctx, "started", "Evaluating candidates with test suites & Hard Gates");
+  emitPhaseChange(ctx, "started", "Evaluating candidates with configured checks & Hard Gates");
   emitSubAgentStart(
     ctx,
     "agent-evaluator",
     "Objective Evaluator",
-    "Execute objective test suites, measure Hard Gates, soft metrics & regressions",
+    "Run configured checks and measure Hard Gates, soft metrics & regressions",
     "Evaluating baseline and worktree implementations..."
   );
 
-  console.log(`[Phase: Verify] Independently evaluating each worktree candidate with objective test suites...`);
+  console.log(`[Phase: Verify] Independently evaluating each worktree candidate...`);
   ctx.verifications = [];
 
-  // Determine effective test command, checking active procedural skills if testCommand not explicit
-  let effectiveTestCommand = ctx.testCommand;
-  if (!effectiveTestCommand && ctx.activeSkills.length > 0) {
-    const skillWithCommand = ctx.activeSkills.find((s) => s.command);
-    if (skillWithCommand?.command) {
-      effectiveTestCommand = skillWithCommand.command;
-      console.log(`[Phase: Verify] Reusing verified test command from skill '${skillWithCommand.name}': ${effectiveTestCommand}`);
-    }
+  // Only an explicitly configured command is mandatory; otherwise each candidate agent chooses its checks.
+  const testCommand = effectiveTestCommand(ctx);
+  if (!testCommand) {
+    console.log("[Phase: Verify] No mandatory test command configured; relying on the candidate worker's validation choice.");
   }
 
   // 1. Evaluate Candidate 0 (main branch baseline)
-  ctx.budgetTracker.recordTestRun();
+  if (testCommand) ctx.budgetTracker.recordTestRun();
   const baselineResult = await ctx.evaluator.runBaselineVerification({
     repoPath: ctx.worktreeManager.repoRoot,
-    testCommand: effectiveTestCommand,
+    testCommand,
   });
   ctx.baselineVerification = baselineResult;
   console.log(
@@ -667,12 +667,12 @@ export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
 
   // 2. Evaluate all worktree candidates
   for (const impl of ctx.implementations) {
-    ctx.budgetTracker.recordTestRun();
+    if (testCommand) ctx.budgetTracker.recordTestRun();
     const levelMultiplier = impl.level === "redesign" ? 3 : impl.level === "subsystem" ? 2 : 1;
     const result = await ctx.evaluator.runVerification({
       candidateId: impl.candidateId,
       worktreePath: impl.worktreePath,
-      testCommand: effectiveTestCommand,
+      testCommand,
       interventionLevel: levelMultiplier,
     });
     ctx.verifications.push(result);
@@ -689,6 +689,54 @@ export async function verifyAction(ctx: HarnessContext): Promise<NodeStatus> {
       { verification: result }
     );
   }
+
+  // Give each candidate a bounded chance to repair its own test failures, then
+  // rerun the independent verifier against the updated branch.
+  const maxRepairRounds = 2;
+  for (let repairRound = 1; repairRound <= maxRepairRounds; repairRound++) {
+    const failedByCandidate = new Map(
+      ctx.verifications
+        .filter((verification) => verification.tests.failed > 0)
+        .map((verification) => [verification.candidateId, verification])
+    );
+    if (failedByCandidate.size === 0 || !ctx.codexManager || !testCommand) break;
+    if (ctx.budgetTracker.isExhausted()) {
+      console.warn(`[Phase: Verify] Test-run budget exhausted; skipping candidate repair round ${repairRound}.`);
+      break;
+    }
+
+    console.log(`[Phase: Verify] Asking ${failedByCandidate.size} candidate worker(s) to repair test failures (round ${repairRound}/${maxRepairRounds})...`);
+    await repairFailedCandidates({
+      implementations: ctx.implementations,
+      failures: failedByCandidate,
+      codexManager: ctx.codexManager,
+      testCommand,
+      eventBus: ctx.eventBus,
+      repairRound,
+    });
+
+    for (const impl of ctx.implementations) {
+      if (!failedByCandidate.has(impl.candidateId)) continue;
+      if (ctx.budgetTracker.isExhausted()) {
+        console.warn("[Phase: Verify] Test-run budget exhausted; stopping candidate re-verification.");
+        break;
+      }
+      ctx.budgetTracker.recordTestRun();
+      const result = await ctx.evaluator.runVerification({
+        candidateId: impl.candidateId,
+        worktreePath: impl.worktreePath,
+        testCommand,
+        interventionLevel: impl.level === "redesign" ? 3 : impl.level === "subsystem" ? 2 : 1,
+      });
+      const index = ctx.verifications.findIndex((verification) => verification.candidateId === impl.candidateId);
+      if (index >= 0) ctx.verifications[index] = result;
+      console.log(
+        `  - Candidate ${impl.candidateId} after repair ${repairRound}: hardGates=${result.hardGates.passedAll ? "PASS" : "FAIL"}, passed=${result.tests.passed}, failed=${result.tests.failed}, lines=+${result.softMetrics.addedLines}/-${result.softMetrics.deletedLines}`
+      );
+    }
+  }
+
+  await ctx.memoryManager.saveArtifact(ctx.runId, "implementations.json", ctx.implementations);
 
   // 3. Update Adaptive Hypothesis Scheduler with experiment outcomes
   if (ctx.hypothesisScheduler) {
@@ -1049,8 +1097,8 @@ export async function stageIntegrationAction(ctx: HarnessContext): Promise<NodeS
   }
 
   // 3. Full Integration Verification on the exact integrationSha
-  const integrationTestCommand = ctx.testCommand ?? "npm test";
-  console.log(`[Phase: StageIntegration] Running Full Integration Verification suite on integrationSha ${integrationSha}...`);
+  const integrationTestCommand = effectiveTestCommand(ctx);
+  console.log(`[Phase: StageIntegration] Running integration verification on integrationSha ${integrationSha}${integrationTestCommand ? ` with '${integrationTestCommand}'` : " (no mandatory test command configured)"}...`);
   const integrationResult = await ctx.evaluator.runVerification({
     candidateId: `integration-${ctx.winner.implementation.candidateId}`,
     worktreePath,

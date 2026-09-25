@@ -335,7 +335,7 @@ export async function runHarness(goal: string, options: RunHarnessOptions) {
     useCodex,
     codexModel: options.model,
     codexModelReasoningEffort: options.effort,
-    testCommand: process.env.HARNESS_TEST_COMMAND || "npm test",
+    testCommand: process.env.HARNESS_TEST_COMMAND,
   });
 
   const finalState = await harness.runUntilFinished();
@@ -436,7 +436,7 @@ async function main() {
     setEffort: (e: ModelReasoningEffort) => {
       currentEffort = e;
     },
-    testCommand: process.env.HARNESS_TEST_COMMAND || "npm test",
+    testCommand: process.env.HARNESS_TEST_COMMAND,
     useCodex:
       process.env.USE_CODEX !== undefined
         ? process.env.USE_CODEX !== "false" && process.env.USE_CODEX !== "0"

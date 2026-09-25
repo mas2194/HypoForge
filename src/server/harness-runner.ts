@@ -113,7 +113,7 @@ export class HarnessRunner {
       availableModels: loadCachedModels(),
       setModel: (m: string) => this.setModel(m),
       setEffort: (e: ModelReasoningEffort) => this.setEffort(e),
-      testCommand: process.env.HARNESS_TEST_COMMAND || "npm test",
+      testCommand: process.env.HARNESS_TEST_COMMAND,
       useCodex:
         process.env.USE_CODEX !== undefined
           ? process.env.USE_CODEX !== "false" && process.env.USE_CODEX !== "0"
@@ -203,7 +203,7 @@ export class HarnessRunner {
           useCodex,
           codexModel: this.model,
           codexModelReasoningEffort: this.effort,
-          testCommand: process.env.HARNESS_TEST_COMMAND || "npm test",
+          testCommand: process.env.HARNESS_TEST_COMMAND,
           eventBus: this.eventBus,
         });
 

@@ -9,6 +9,7 @@ import {
 import type { WorktreeManager } from "../git/worktree.js";
 import type { CodexClientManager } from "../codex/client.js";
 import type { HarnessEventBus } from "../server/event-bus.js";
+import type { VerificationResult } from "../schemas/result.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -19,6 +20,74 @@ export interface ImplementOptions {
   runId?: string;
   eventBus?: HarnessEventBus;
   priorResults?: string[];
+}
+
+export interface RepairOptions {
+  implementations: CandidateImplementation[];
+  failures: Map<string, VerificationResult>;
+  codexManager?: CodexClientManager;
+  testCommand: string;
+  eventBus?: HarnessEventBus;
+  repairRound: number;
+}
+
+/** Ask the candidate's worker to diagnose and repair its own failing test run. */
+export async function repairFailedCandidates(options: RepairOptions): Promise<void> {
+  if (!options.codexManager) return;
+
+  const repairs = options.implementations.filter((impl) => options.failures.has(impl.candidateId));
+  await Promise.all(repairs.map(async (impl) => {
+    const verification = options.failures.get(impl.candidateId)!;
+    options.eventBus?.emitSubAgent({
+      agentId: `worker-${impl.candidateId}`,
+      name: `Worker [${impl.candidateId}]`,
+      role: "Repair candidate after failed verification",
+      phase: "Verify",
+      status: "running",
+      type: "start",
+      message: `Repairing test failures (round ${options.repairRound})...`,
+      details: { candidateId: impl.candidateId, repairRound: options.repairRound },
+    });
+
+    try {
+      const thread = options.codexManager!.startWorkerThread({ workingDirectory: impl.worktreePath });
+      const turn = await thread.run(`The independent harness verification failed for candidate ${impl.candidateId}.
+
+Test command: ${options.testCommand}
+Exit code: ${verification.tests.exitCode}
+Failed command count: ${verification.tests.failed}
+Reported failing test IDs: ${verification.tests.failingTestIds.join(", ") || "none parsed"}
+
+Failure output:
+\`\`\`text
+${verification.tests.output.slice(-20000)}
+\`\`\`
+
+Inspect the implementation and the failure output, fix the underlying cause in this worktree, rerun the test command, and continue fixing errors until it passes or you can explain a blocker. Do not weaken, delete, skip, or alter tests merely to make them pass. Keep the candidate's intended behavior. Commit your repair on the current candidate branch so the harness can measure and verify it.`);
+      impl.repairReports = [...(impl.repairReports ?? []), turn.finalResponse.slice(-12000)];
+      options.eventBus?.emitSubAgent({
+        agentId: `worker-${impl.candidateId}`,
+        name: `Worker [${impl.candidateId}]`,
+        role: "Repair candidate after failed verification",
+        phase: "Verify",
+        status: "completed",
+        type: "finish",
+        message: `Repair attempt ${options.repairRound} finished; candidate will be independently verified again.`,
+        details: { candidateId: impl.candidateId, repairRound: options.repairRound, report: turn.finalResponse.slice(-4000) },
+      });
+    } catch (err: any) {
+      options.eventBus?.emitSubAgent({
+        agentId: `worker-${impl.candidateId}`,
+        name: `Worker [${impl.candidateId}]`,
+        role: "Repair candidate after failed verification",
+        phase: "Verify",
+        status: "failed",
+        type: "finish",
+        message: `Repair attempt failed: ${err?.message || err}`,
+        details: { candidateId: impl.candidateId, repairRound: options.repairRound },
+      });
+    }
+  }));
 }
 
 export async function runImplementPhase(
@@ -89,11 +158,13 @@ Experiment: ${candidate.experiment}
 
 Instructions:
 - Make all necessary file modifications strictly in this worktree directory.
-- Ensure changes compile and pass tests.
+- Choose whether testing is useful for this change. If it is, select an appropriate method and scope from the repository's existing scripts, tests, and conventions; you do not have to run a test command when it would not add useful confidence. If a check you choose fails, inspect the output, fix the underlying issue, and rerun the relevant check. Do not weaken, delete, or skip tests merely to hide a failure.
+- Report which checks you ran, their results, or why you judged testing unnecessary.
 - When finished, commit your changes to this branch if possible, or leave files ready.
 `.trim();
 
-        await thread.run(prompt);
+        const turn = await thread.run(prompt);
+        impl.agentReport = turn.finalResponse.slice(-12000);
         impl.status = "completed";
 
         options.eventBus?.emitSubAgent({
@@ -104,7 +175,7 @@ Instructions:
           status: "completed",
           type: "finish",
           message: `Implementation completed successfully for candidate ${candidate.id}`,
-          details: { candidateId: candidate.id, worktreePath },
+          details: { candidateId: candidate.id, worktreePath, report: turn.finalResponse.slice(-4000) },
         });
       } catch (err: any) {
         console.error(`Implementation failed for ${candidate.id}:`, err);

@@ -364,6 +364,7 @@ GITHUB_TARGET_REPO=
 # 実行時パラメータ設定
 MAX_PARALLEL_EXPERIMENTS=3
 WORKTREES_DIR=./worktrees
+# 任意: 未設定の場合、候補エージェントが有効なチェック方法を判断します。
 HARNESS_TEST_COMMAND="npm test"
 ```
 

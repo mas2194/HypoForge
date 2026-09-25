@@ -21,6 +21,8 @@ export const CandidateImplementationSchema = z.object({
   branchName: z.string(),
   status: z.enum(["pending", "implementing", "completed", "failed"]),
   error: z.string().optional(),
+  agentReport: z.string().optional(),
+  repairReports: z.array(z.string()).optional(),
 });
 
 export type CandidateImplementation = z.infer<typeof CandidateImplementationSchema>;

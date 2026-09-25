@@ -128,15 +128,17 @@ export function computeEvidenceStrength(params: {
     return 0.0;
   }
 
-  // Base empirical strength for zero regressions and passing test suite
-  let strength = 0.50;
+  // Without an executed suite, retain only a small amount of evidence for
+  // passing integrity and diagnostic checks; an untested candidate must not
+  // receive the same evidence score as a tested one.
+  let strength = params.totalTests > 0 ? 0.50 : 0.0;
 
   // Ratio of passed tests (up to 0.15)
-  const passRatio = params.totalTests > 0 ? params.passedTests / params.totalTests : 1.0;
+  const passRatio = params.totalTests > 0 ? params.passedTests / params.totalTests : 0.0;
   strength += Math.min(0.15, passRatio * 0.15);
 
   // Clean compiler/linter diagnostics (+0.10 if zero new diagnostic errors)
-  if (params.diagnosticErrorsCount === 0) {
+  if (params.totalTests > 0 && params.diagnosticErrorsCount === 0) {
     strength += 0.10;
   }
 
@@ -169,30 +171,34 @@ export class Evaluator {
    * Used as the control baseline to guarantee proposed changes provide genuine superiority.
    */
   async runBaselineVerification(options: RunBaselineOptions): Promise<VerificationResult> {
-    const { repoPath, testCommand = "npm test" } = options;
+    const { repoPath, testCommand } = options;
     let testOutput = "";
     let passed = 0;
     let failed = 0;
     let exitCode = 0;
     const regressions: string[] = [];
 
-    try {
-      const { stdout, stderr } = await execAsync(testCommand, { cwd: repoPath });
-      testOutput = `${stdout}\n${stderr}`.trim();
-      passed = 1;
-      failed = 0;
-      exitCode = 0;
-    } catch (err: any) {
-      testOutput = `${err.stdout || ""}\n${err.stderr || ""}\n${err.message || ""}`.trim();
-      passed = 0;
-      failed = 1;
-      exitCode = normalizeExitCode(err.code);
-      regressions.push(`Baseline test command failed: ${testCommand}`);
+    if (testCommand) {
+      try {
+        const { stdout, stderr } = await execAsync(testCommand, { cwd: repoPath });
+        testOutput = `${stdout}\n${stderr}`.trim();
+        passed = 1;
+        failed = 0;
+        exitCode = 0;
+      } catch (err: any) {
+        testOutput = `${err.stdout || ""}\n${err.stderr || ""}\n${err.message || ""}`.trim();
+        passed = 0;
+        failed = 1;
+        exitCode = normalizeExitCode(err.code);
+        regressions.push(`Baseline test command failed: ${testCommand}`);
+      }
+    } else {
+      testOutput = "No mandatory test command configured; candidate agent selects whether testing is useful.";
     }
 
     const failingTestIds = extractFailingTestIds(testOutput);
     const diagnostics = extractDiagnostics(testOutput);
-    const testsPassed = failed === 0 && passed > 0;
+    const testsPassed = !testCommand || (failed === 0 && passed > 0);
     const hardGates = {
       testsPassed,
       noRegressions: regressions.length === 0,
@@ -203,7 +209,7 @@ export class Evaluator {
       failureReasons: regressions,
     };
 
-    const evidenceStrength = testsPassed ? 1.0 : 0.0;
+    const evidenceStrength = !testCommand ? 0.0 : testsPassed ? 1.0 : 0.0;
     const softMetrics = {
       performanceImprovementPercent: 0,
       complexityDelta: 0,
@@ -261,7 +267,7 @@ export class Evaluator {
     const {
       candidateId,
       worktreePath,
-      testCommand = "npm test",
+      testCommand,
       baseBranch = "main",
       interventionLevel = 1,
       benchmarkBefore,
@@ -276,18 +282,22 @@ export class Evaluator {
 
     // 1. Machine Gate: Run Tests
     const startTime = Date.now();
-    try {
-      const { stdout, stderr } = await execAsync(testCommand, { cwd: worktreePath });
-      testOutput = `${stdout}\n${stderr}`.trim();
-      passed = 1;
-      failed = 0;
-      exitCode = 0;
-    } catch (err: any) {
-      testOutput = `${err.stdout || ""}\n${err.stderr || ""}\n${err.message || ""}`.trim();
-      passed = 0;
-      failed = 1;
-      exitCode = normalizeExitCode(err.code);
-      regressions.push(`Test command failed: ${testCommand}`);
+    if (testCommand) {
+      try {
+        const { stdout, stderr } = await execAsync(testCommand, { cwd: worktreePath });
+        testOutput = `${stdout}\n${stderr}`.trim();
+        passed = 1;
+        failed = 0;
+        exitCode = 0;
+      } catch (err: any) {
+        testOutput = `${err.stdout || ""}\n${err.stderr || ""}\n${err.message || ""}`.trim();
+        passed = 0;
+        failed = 1;
+        exitCode = normalizeExitCode(err.code);
+        regressions.push(`Test command failed: ${testCommand}`);
+      }
+    } else {
+      testOutput = "No mandatory test command configured; candidate agent selects whether testing is useful.";
     }
     const duration = Date.now() - startTime;
 
@@ -378,7 +388,7 @@ export class Evaluator {
 
     // 4. Hard Gates Check
     const diagnostics = extractDiagnostics(testOutput);
-    const testsPassed = failed === 0 && passed > 0;
+    const testsPassed = !testCommand || (failed === 0 && passed > 0);
     const noRegressions = regressions.length === 0;
     const testIntegrityPassed = integrityResult.passed;
     const typecheckPassed = diagnostics.typeErrors.length === 0;

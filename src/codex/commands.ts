@@ -194,7 +194,7 @@ export function handleStatusCommand(context: SlashCommandContext): SlashCommandR
     `Active Model:     ${context.currentModel}${matchedModel ? ` (${matchedModel.displayName})` : ""}`,
     `Reasoning Effort: ${context.currentEffort} (${EFFORT_DESCRIPTIONS[context.currentEffort] || "custom"})`,
     `Codex Mode:       ${context.useCodex !== false ? "Enabled" : "Disabled (Offline Simulation)"}`,
-    `Test Command:     ${context.testCommand || "npm test"}`,
+    `Test Command:     ${context.testCommand || "Agent selects when useful"}`,
   ];
 
   return {
