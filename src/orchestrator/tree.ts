@@ -60,7 +60,7 @@ export function buildHarnessBehaviorTree(options?: TreeOptions): BTNode<HarnessC
     sequence("Autonomous Architecture Exploration Pipeline", [
       wrap(action("Inspect", inspectAction)),
       wrap(action("Triage", triageAction)),
-      wrap(action("Selected Execution Path", async (ctx) => {
+      wrap(action<HarnessContext>("Selected Execution Path", async (ctx) => {
         if (ctx.triageDecision?.path === "FAST") {
           return fastTrackSubtree.tick(ctx);
         }

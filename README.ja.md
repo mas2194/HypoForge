@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x%20%2F%207.x-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Vitest](https://img.shields.io/badge/Tests-83%20passed-brightgreen.svg?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Tests-21%20suites%20%2F%20140%2B%20passed-brightgreen.svg?logo=vitest&logoColor=white)](https://vitest.dev/)
 
 [**English**](README.md) | **日本語**
 
@@ -27,20 +27,24 @@ LLMを単なる「diffを生成するパッチ作成器」として扱うので�
   - [2. 介入ラダー（Intervention Ladder: L0〜L6）](#2-介入ラダーintervention-ladder-l0l6)
   - [3. 反事実的アーキテクチャ検査（Counterfactual Check）](#3-反事実的アーキテクチャ検査counterfactual-check)
   - [4. 発散的多様性生成とダイバーシティ・ゲート](#4-発散的多様性生成とダイバーシティゲート)
-  - [5. 安価な反証優先スケジューリング（Cheap-Falsification-First MAB）](#5-安価な反証優先スケジューリングcheap-falsification-first-mab)
-  - [6. 独立 Git Worktree による並列探索](#6-独立-git-worktree-による並列探索)
-  - [7. 外側Behavior Tree ＋ 内側Deep FSM コントローラー](#7-外側behavior-tree--内側deep-fsm-コントローラー)
-  - [8. 多層機械検証と不変条件オラクル（Metamorphic Oracle）](#8-多層機械検証と不変条件オラクルmetamorphic-oracle)
-  - [9. ブラインド・クリーンルーム査読（Clean-Room Reviewer）](#9-ブラインドクリーンルーム査読clean-room-reviewer)
-  - [10. 4層構造化証拠ストアと不可逆損失のないコンテキスト圧縮](#10-4層構造化証拠ストアと不可逆損失のないコンテキスト圧縮)
-  - [11. GitHub Broker と検証済みコミットSHA不変条件](#11-github-broker-と検証済みコミットsha不変条件)
-  - [12. SQLite FTS5 耐久メモリと昇格ラダー](#12-sqlite-fts5-耐久メモリと昇格ラダー)
-  - [13. キャリブレーション付き DPO 選好軌跡エクスポート](#13-キャリブレーション付き-dpo-選好軌跡エクスポート)
+  - [5. モデル主導のリサーチ・ルーティング](#5-モデル主導のリサーチルーティング)
+  - [6. 安価な反証優先スケジューリング（Cheap-Falsification-First MAB）](#6-安価な反証優先スケジューリングcheap-falsification-first-mab)
+  - [7. 独立 Git Worktree による並列探索](#7-独立-git-worktree-による並列探索)
+  - [8. 自律的テスト選択と自己修復フィードバックループ](#8-自律的テスト選択と自己修復フィードバックループ)
+  - [9. 外側Behavior Tree ＋ 蓄積コンテキスト障害復旧](#9-外側behavior-tree--蓄積コンテキスト障害復旧)
+  - [10. 多層機械検証と不変条件オラクル（Metamorphic Oracle）](#10-多層機械検証と不変条件オラクルmetamorphic-oracle)
+  - [11. ブラインド・クリーンルーム査読（Clean-Room Reviewer）](#11-ブラインドクリーンルーム査読clean-room-reviewer)
+  - [12. 4層構造化証拠ストアと不可逆損失のないコンテキスト圧縮](#12-4層構造化証拠ストアと不可逆損失のないコンテキスト圧縮)
+  - [13. GitHub Broker と検証済みコミットSHA不変条件](#13-github-broker-と検証済みコミットsha不変条件)
+  - [14. SQLite FTS5 耐久メモリと昇格ラダー](#14-sqlite-fts5-耐久メモリと昇格ラダー)
+  - [15. キャリブレーション付き DPO 選好軌跡エクスポート](#15-キャリブレーション付き-dpo-選好軌跡エクスポート)
 - [クイックスタート](#クイックスタート)
   - [前提要件](#前提要件)
   - [インストール](#インストール)
   - [環境変数の設定](#環境変数の設定)
   - [実行方法](#実行方法)
+  - [インタラクティブ・スラッシュコマンド & ファイル補完](#インタラクティブスラッシュコマンド)
+  - [Web UI サーバーモード（3カラム・ダッシュボード）](#web-ui-サーバーモード--server---s)
 - [詳細設定](#詳細設定)
   - [GitHub App の連携設定](#github-app-の連携設定)
   - [多次元バジェット・ガバナー](#多次元バジェットガバナー)
@@ -168,7 +172,7 @@ LLMを単なる「diffを生成するパッチ作成器」として扱うので�
 
 候補はまずベースライン相対のハードゲートで判定します。合格候補は、計測された性能改善率、証拠強度、検証スコアの順で順位付けし、すべて同じ場合は候補IDで順序を決めます。介入レベルと差分サイズは記録しますが、順位付けには使いません。
 
-正しさと回帰の検査はハードゲートで扱います。順位付けでは保守性やアーキテクチャの一貫性を直接測定しておらず、行数をその代理指標にもしていません。変更が大きいという理由だけで優先されることはなく、検証結果と証拠に基づいて順位が決まります。
+正しさと回帰の検査はハードゲートで扱います。順位付けでは保守性やアーキテクチャの一貫性を直接測定しておらず、行数をその代理指標にもしていません。変更が大きいという理由だけで優先されることはなく、検証結果と証拠に基づいて順位が決まります。機械的に検証された事項と経験的仮説の境界についての客観的な評価・分析は、[docs/architecture-evaluation.md](docs/architecture-evaluation.md) を参照してください。
 
 ### 2. 介入ラダー（Intervention Ladder: L0〜L6）
 
@@ -207,7 +211,14 @@ LLMを単なる「diffを生成するパッチ作成器」として扱うので�
 
 **Diversity Gate** により、生き残った候補同士が構造的に直交していることが保証され、同一アイデアの無駄な並列実装を防止します。
 
-### 5. 安価な反証優先スケジューリング（Cheap-Falsification-First MAB）
+### 5. モデル主導のリサーチ・ルーティング
+
+深いアーキテクチャ診断を開始する前に、外部の文献や仕様調査が必要かを動的に判定します（`src/phases/research-router.ts`）：
+- **モデル推論（`judgeResearchNeed`）**: 与えられた言語（日本語・英語等）のまま、リポジトリ外の先行事例比較やプロトコル仕様、ドメイン知識の調査が必要かをLLMが自律判定。
+- **シグナル検出**: レイテンシ/スループット目標、並行処理/ロックフリー、アルゴリズム/データ構造選定、コア再設計、SOTA/論文調査、外部API刷新などのパターンを自動識別。
+- 必要な場合は自律リサーチワーカーが調査を行い、構造化された知見（`CandidateResearchSchema`）を抽出してから診断へ進みます。
+
+### 6. 安価な反証優先スケジューリング（Cheap-Falsification-First MAB）
 
 高価なコード生成を行う前に、専任の **Falsifier（反証エージェント）** が各仮説に対して反例、競合状態、エッジケース、計算量爆発の観点から猛烈な批判を加えます。
 
@@ -219,27 +230,33 @@ $$
 
 安価かつ反証リスクの高い実験から順次実行することで、破綻した仮説を最小のトークン消費と時間で早期枝刈り（Early Pruning）します。
 
-### 6. 独立 Git Worktree による並列探索
+### 7. 独立 Git Worktree による並列探索
 
 未完成なコードが作業ツリーを汚染するのを防ぐため、候補ごとに独立した Git Worktree（`worktrees/run-<id>-<cand>/`）を自動作成します：
 - 完全にクリーンなGit作業ツリーの保証。
 - 複数候補の並列ビルド・並列テストの安全な実行。
 - 却下された候補のブランチとワークツリーの完全自動ロールバック。
 
-### 7. 外側Behavior Tree ＋ 内側Deep FSM コントローラー
+### 8. 自律的テスト選択と自己修復フィードバックループ
 
-本ハーネスは二層の制御構造を採用しています：
+実装段階において、候補ワーカーはリポジトリの規約を遵守しつつ高い自律性をもって作業します（`src/phases/implement.ts`）：
+- **自律的テスト選択**: 機械的に全テストを回すのではなく、変更内容に応じてテストの有用性、適切なテスト範囲やスクリプトを自律的に選定。
+- **自動自己修復ループ（`repairFailedCandidates`）**: 独立ハーネス検証でテスト失敗（非ゼロ終了コード、テスト失敗ID、回帰エラー等）が検出された場合、最大20,000文字の失敗ログを該当候補のワーカースレッドへフィードバック。ワークツリー内で根本原因を調査・修正し、テストを再実行した上で修正コミットを作成して再検証を受けます。
+
+### 9. 外側Behavior Tree ＋ 蓄積コンテキスト障害復旧
+
+本ハーネスは回復力の高い二層制御構造を採用しています：
 - **外側 Behavior Tree (BT)**: 大局的な実行戦略、フォールバック、タイムアウト、リトライ、クリーンアップを `Sequence`, `Selector`, `Parallel`, 各種デコレーター（`Tracer`, `Retry`, `Timeout`）で決定論的に統括。
 - **内側 Deep FSM (`DeepController`)**: Deep探索内の `Diagnose`, `Falsify`, `Implement`, `Verify`, `Review` を精密に状態遷移。
+- **蓄積コンテキスト障害復旧（`maxAutomaticRestarts`）**: Behavior Tree の実行が失敗した場合でも、過去の試行で蓄積されたエラーログ、診断結果、検証結果（`recoveryHistory`）をコンテキストに保持したまま `Inspect` から自動再実行。失敗アプローチの繰り返しを回避しながら自己修復を図ります。
+- **構造化バックトラック・ルーター**: 実行中の候補却下原因を5つの構造化クラスに分類し、必要なフェーズへピンポイントで直接ジャンプ：
+  1. `IMPLEMENTATION_ERROR` $\rightarrow$ `Implement` へ直接ジャンプ
+  2. `FALSIFICATION_GAP` $\rightarrow$ `Falsify` へジャンプ
+  3. `ROOT_CAUSE_ERROR` $\rightarrow$ `Diagnose` へジャンプ
+  4. `EXTERNAL_SPEC` $\rightarrow$ `Research` へジャンプ
+  5. `REPO_MODEL_ERROR` $\rightarrow$ `Inspect` へジャンプ
 
-候補が失敗した場合、**Backtrack Router** が原因を5つの構造化クラスに分類し、必要なフェーズへピンポイントで直接ジャンプします：
-1. `IMPLEMENTATION_ERROR` $\rightarrow$ `Implement` へ直接ジャンプ
-2. `FALSIFICATION_GAP` $\rightarrow$ `Falsify` へジャンプ
-3. `ROOT_CAUSE_ERROR` $\rightarrow$ `Diagnose` へジャンプ
-4. `EXTERNAL_SPEC` $\rightarrow$ `Research` へジャンプ
-5. `REPO_MODEL_ERROR` $\rightarrow$ `Inspect` へジャンプ
-
-### 8. 多層機械検証と不変条件オラクル（Metamorphic Oracle）
+### 10. 多層機械検証と不変条件オラクル（Metamorphic Oracle）
 
 LLM自身の「実装できました」という自己申告は一切信用しません：
 - **Identity Delta 型検査・リント**: 単なる件数比較ではなく、ハッシュ識別子による集合差分（$\text{Cand} \setminus \text{Base} = \emptyset$）を取り、既存エラーの裏に新規エラーが隠蔽されるのを防止。
@@ -249,20 +266,20 @@ LLM自身の「実装できました」という自己申告は一切信用し�
   - ラウンドトリップ変換: $\text{decode}(\text{encode}(x)) = x$
   - 状態遷移の可換性および不変量境界の充足。
 
-### 9. ブラインド・クリーンルーム査読（Clean-Room Reviewer）
+### 11. ブラインド・クリーンルーム査読（Clean-Room Reviewer）
 
 機械検証をパスした最優秀候補は、独立した **Clean-Room Reviewer** による査読に送られます：
 - 実装コンテキスト（試行錯誤のチャット履歴）を一切与えない新規スレッドで起動（サンクコスト効果や言い訳の排除）。
 - ネットワーク遮断・`read-only` サンドボックス環境。
 - PRの差分（diff）、仕様、検証スコアのみから、敵対的なシニアエンジニアの視点で隠れたエッジケースや設計リグレッションを審査。
 
-### 10. 4層構造化証拠ストアと不可逆損失のないコンテキスト圧縮
+### 12. 4層構造化証拠ストアと不可逆損失のないコンテキスト圧縮
 
 長時間セッションによる注意の希釈を防ぐため、揮発性データと不変の事実を明確に分離します：
 - **4層構造化証拠ストア**: 事実レコードを `Observation`（観察事実）、`Assertion`（検証結果）、`Inference`（推論・仮説）、`Decision`（採択決定）の4層に不変保存。
 - **コンテキスト・コンパクター**: バックトラックやフェーズ遷移時、長大なチャットログやスタックトレースを破棄し、負の制約条件や不変条件違反の教訓のみを蒸留して次期コンテキストへ射影。
 
-### 11. GitHub Broker と検証済みコミットSHA不変条件
+### 13. GitHub Broker と検証済みコミットSHA不変条件
 
 セキュリティとリポジトリの整合性を極限まで高めています：
 - **最小権限 GitHub App**: LLMには生のPersonal Access Token（PAT）を一切渡さず、厳格に型付けされた `GitHubBroker` 経由でのみGitHub操作を実行。
@@ -272,7 +289,7 @@ $$
 \text{SHA}_{\text{verified}} \equiv \text{SHA}_{\text{PR}}
 $$
 
-### 12. SQLite FTS5 耐久メモリと昇格ラダー
+### 14. SQLite FTS5 耐久メモリと昇格ラダー
 
 過去の知見、アーキテクチャ決定記録（ADR）、プロシージャル・スキルは組み込みの SQLite FTS5 データベースに永続化されます。知識は検証の深さに応じて単調増加する信頼度ラダーを進みます：
 
@@ -294,7 +311,7 @@ MERGED (マージ完了: 1.0)
 
 リポジトリ検査時に生成された問題シグネチャを BM25 全文検索で過去の知見と照合し、同じ設計ミスを別タスクで再発させるのを防ぎます。
 
-### 13. キャリブレーション付き DPO 選好軌跡エクスポート
+### 15. キャリブレーション付き DPO 選好軌跡エクスポート
 
 すべての探索履歴は、DPO（Direct Preference Optimization）形式の JSONL データセット（`.agent/trajectories/`）として自動記録されます。採用候補は `chosen`、却下候補は `rejected` としてラベル付けされ、査読の直交性やメタモルフィック検証の深さに基づいた信頼度重みが付与されます。
 
@@ -361,18 +378,30 @@ HARNESS_TEST_COMMAND="npm test"
 対話型プロンプトまたは引数指定でハーネスを起動します：
 
 ```bash
-# 対話型モード（Enter: 送信、Shift+Enter: 改行）
+# 対話型モード（Enter: 送信、Shift+Enter: 改行、Tab: @ ファイル補完）
 npx tsx src/main.ts
 
 # 直接目標（ゴール）を指定して実行
 npx tsx src/main.ts "Migrate storage layer to SQLite and eliminate duplicate state"
 
-# モデルや推論Effortを直接指定して実行
-npx tsx src/main.ts --model gpt-6-sol --effort high "Refactor network layer"
+# モデル（-m）や推論Effort（-e）を直接指定して実行
+npx tsx src/main.ts -m gpt-6-sol -e high "Refactor network layer"
+
+# Web UI サーバーモード（-s）をポート指定（-p）で起動
+npx tsx src/main.ts -s -p 8080
 
 # またはビルド後の実行
 node dist/main.js
 ```
+
+#### CLI フラグ一覧
+
+| フラグ | 短縮形 | 説明 | デフォルト値 |
+|---|---|---|---|
+| `--model <name>` | `-m` | 使用する LLM / Codex モデル（例: `gpt-6-sol`, `gpt-6-luna`, `o3-mini`） | `gpt-6-luna`（または `OPENAI_MODEL`） |
+| `--effort <level>` | `-e` | 推論深度（`minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`, `persistent`） | `medium` |
+| `--server` | `-s` | ブラウザ操作用 Web UI サーバーを起動 | `false`（CLI 対話モード） |
+| `--port <num>` | `-p` | Web UI サーバーのポート番号 | `3000`（または `PORT` 環境変数） |
 
 #### 対話型スラッシュコマンド（Codex CLI準拠）
 
@@ -399,7 +428,7 @@ node dist/main.js
   - 行番号範囲の指定もサポート: `@src/main.ts:10-50`
 - **Tab キー（tap）による候補補完 & 選択**：
   - `@` または `@ファイル名の一部` を入力して **Tab** キーを押すと、ワークスペース内の候補ファイル一覧が表示されます。
-  - **Tab**（または **↓** / **↑** / **Shift+Tab**）を押すことで候補を順次切り替えて選択できます。
+  - **Tab**（または **↓** / **↑** / **Shift+Tab**）を押すことで候補をインプレースで順次切り替えて選択できます。
   - **Enter** または **Space** で候補を確定し、そのまま指示の入力を続けられます（**Esc** でキャンセル）。
 
 #### Web UI サーバーモード（`--server` / `-s`）
@@ -412,27 +441,45 @@ npm run server
 # または
 npx tsx src/main.ts --server
 
-# ポート番号やモデルを指定して起動
-npx tsx src/main.ts --server --port 8080 --model o3-mini --effort high
+# ポート番号やモデル、推論Effortを指定して起動
+npx tsx src/main.ts -s -p 8080 -m o3-mini -e high
 ```
 
-ブラウザで `http://localhost:3000` にアクセスすると、左右2分割のモダンなUIで操作できます：
-- **左側ペイン（Model Conversation）**:
+ブラウザで `http://localhost:3000` にアクセスすると、モダンな **3カラム・ダッシュボード** で操作できます：
+
+- **左側ペイン（会話とコントロール: Chat Pane）**:
   - チャット形式で目標（Goal）を入力し、モデルと対話しながら自律探索を実行。
-  - `@<file>` 入力時の自動補完ドロップダウンや、`/model`, `/effort`, `/help` などのスラッシュコマンドに対応。
-  - ヘッダーからアクティブモデルや推論Effortを動的に切り替え可能。
-- **右側ペイン（Harness Stage Graph & Codex Sub-Agent Activity）**:
-  - **ハーネス各段階のグラフ（Pipeline Stage Graph）**: `Inspect` → `Triage` → `Explore`（`FAST` または `DEEP`）→ `Integrate` → `Publish` → `Learn` の進行状況をリアルタイムに表示。ノードをクリックすると、その項目の詳細を開きます。`Explore` をクリックすると `Research` から `Review` までの段階別フローを表示し、各段階をクリックすると詳細を確認できます。
-  - **Codex風サブエージェント出力（Sub-Agent Output Panel）**: 思考ログ、ツール活動、生成内容、ログ、各段階の要約を Codex Sub-Agent Activity 内に随時インライン表示します。`Explore` を選ぶと `Research` から `Review` までの段階別フローが表示され、段階を選ぶとパネル内の該当箇所へ移動します。
+  - 上部バーからアクティブモデルや推論Effortを動的に切り替え可能。
+  - クイックアクションチップ（`@src/main.ts`, `/help` 等）および `@<file>` 入力時の自動補完ドロップダウン。
+  - `/model`, `/effort`, `/status`, `/help` 等の対話型スラッシュコマンドをフルサポート。
+- **中央ペイン（ファイル閲覧 & パイプライン活動: Viewer Pane）**:
+  - **`📄 File Content` タブ**:
+    - 多言語シンタックスハイライト（TypeScript/JavaScript, JSON, Python, HTML, CSS, Markdown, Shell 等）。
+    - 行番号表示、言語バッジ、ファイルサイズ・行数のステータス表示。
+    - 行折り返しトグル（Wrap: On/Off）、チャット入力への `@ Mention` 挿入ボタン、クリップボードへの Copy 機能。
+  - **`📊 Pipeline & Activity` タブ**:
+    - **Harness Stage Pipeline Graph**: `Inspect` → `Triage` → `Explore` → `Integrate` → `Publish` → `Learn` の進行状況をリアルタイムに可視化。各フェーズをクリックしてログをフィルタ可能。
+    - **Explore Flow Navigator**: Explore フェーズの内部フロー（`Research` から `Review` まで）をステップ表示し、クリックで該当サブエージェント活動へジャンプ。
+    - **Codex Sub-Agent Activity Panel**: 各サブエージェントの思考ログ、ツール活動、生成内容、ログ、段階サマリーをリアルタイムにインライン表示。
+- **右側ペイン（ワークスペース・ファイルツリー: Workspace File Tree）**:
+  - ワークスペース全体のディレクトリツリー表示とリアルタイムテキスト検索フィルター。
+  - ファイルをクリックすると中央ペインの `File Content` ビューアで即座にプレビュー表示。
+  - 各ファイル横の `@` ボタンをクリックしてチャット入力へ即座にファイルメンションを挿入可能。
+- **REST & SSE エンドポイント**:
+  - `GET /api/file?path=<path>`: ディレクトリトラバーサル攻撃を防ぐセキュリティチェック付きファイル内容取得 API。
+  - `POST /api/chat`, `GET /api/events` (Server-Sent Events), `GET /api/status`, `GET /api/models`, `GET /api/files`。
 
 実行中、`HypoForge` は以下のフローを自律的に進行します：
 1. 対象コードベースの AST、依存関係トポロジー、不変条件を自動解析。
-2. 介入ラダー（L0〜L6）に沿った多層的な診断仮説を生成。
-3. 各仮説に対する敵対的反証・批判を実施。
-4. 生き残った有望候補を独立した Git Worktree 上で並列実装。
-5. コンパイラ、テストスイート、不変条件オラクルによる厳格な機械検証。
-6. クリーンルーム査読者によるブラインド審査。
-7. 承認されたコミットを作業ブランチへ統合、または GitHub Pull Request として自動公開。
+2. モデルの推論とシグナルパターンに基づき、必要に応じて外部仕様・文献リサーチを実施。
+3. 介入ラダー（L0〜L6）に沿った多層的な診断仮説を生成。
+4. 各仮説に対する敵対的反証・批判を実施し、MABスケジューリングにより選定。
+5. 生き残った有望候補を独立した Git Worktree 上で自律的テスト選択を行いながら並列実装。
+6. テスト失敗が検出された場合、自動自己修復ループにより根本原因の修正と再テストを反復。
+7. コンパイラ、テストスイート、不変条件オラクルによる厳格な機械検証。
+8. クリーンルーム査読者によるブラインド審査。
+9. 承認されたコミットを作業ブランチへ統合、または GitHub Pull Request として自動公開。
+10. 全体の実行が失敗した場合でも、蓄積されたコンテキストとエラー履歴を保持して Inspect から自動再実行。
 
 ---
 
@@ -476,6 +523,8 @@ const harness = new HarnessStateMachine({
 HypoForge/
 ├── AGENTS.md                  # システムの最優先設計原則・制約事項
 ├── .env.example               # 環境変数テンプレート
+├── docs/
+│   └── architecture-evaluation.md # 証拠に基づく客観的評価と限界の分析書
 ├── prompts/                   # 各役割に特化したシステムプロンプト
 │   ├── architect.md           # 発散的仮説生成アーキテクト
 │   ├── falsifier.md           # 敵対的反証・批判エージェント
@@ -483,27 +532,51 @@ HypoForge/
 │   ├── researcher.md          # 外部仕様・学術調査エージェント
 │   └── reviewer.md            # クリーンルーム・ブラインド査読者
 ├── src/
-│   ├── main.ts                # CLIエントリーポイント
-│   ├── bt/                    # Behavior Tree エンジン（Composite, Decorator, Node）
+│   ├── main.ts                # CLI & Web サーバーエントリーポイント
+│   ├── bt/                    # Behavior Tree エンジン（Composite, Decorator, Action node）
 │   ├── orchestrator/          # ハイブリッド・オーケストレーター（BT, FSM, 証拠ストア, 圧縮器）
+│   │   ├── orchestrator.ts    # 蓄積コンテキスト障害復旧を備えた最上位オーケストレーター
+│   │   ├── actions.ts         # Behavior Tree アクション実行と状態バインド
 │   │   ├── tree.ts            # Behavior Tree 構造定義
 │   │   ├── deep-controller.ts # Deep探索用内側FSMコントローラー
 │   │   ├── backtrack-router.ts# 5クラスの構造化バックトラック・ルーター
 │   │   ├── evidence-store.ts  # 4層構造化不変証拠ストア
-│   │   └── compactor.ts       # 不可逆損失のないコンテキスト蒸留・圧縮器
+│   │   ├── compactor.ts       # 不可逆損失のないコンテキスト蒸留・圧縮器
+│   │   ├── context.ts         # ハーネス・試行コンテキスト定義
+│   │   └── state-machine.ts   # 公開ファサード API
 │   ├── phases/                # 各自律実行フェーズ
 │   │   ├── inspect-repo.ts    # トポロジー・AST・不変条件解析
 │   │   ├── triage.ts          # Fast / Deep パス判定ルーター
+│   │   ├── research-router.ts # モデル推論とシグナルに基づくリサーチ判定ゲート
+│   │   ├── research.ts        # 外部仕様・学術調査ワーカー
 │   │   ├── architect.ts       # 介入ラダーに基づく仮説生成
 │   │   ├── diversity-gate.ts  # 直交仮説フィルタ（ダイバーシティ・ゲート）
+│   │   ├── adaptive-scheduler.ts # 期待情報利得 / コスト MAB スケジューラー
 │   │   ├── falsify.ts         # 敵対的反証フェーズ
-│   │   ├── implement.ts       # Worktree並列コード合成
+│   │   ├── implement.ts       # Worktree並列コード合成 ＆ 自動自己修復ループ
 │   │   └── review.ts          # ブラインド・クリーンルーム査読
 │   ├── evaluator/             # 検証エンジンとオラクル
 │   │   ├── runner.ts          # 機械テスト・ベンチマーク実行
 │   │   ├── integrity.ts       # テスト改ざん検知・不変条件ゲート
 │   │   ├── oracle.ts          # Tier 3 メタモルフィック / 代数的不変条件オラクル
 │   │   └── pareto.ts          # パレート最適・辞書式ソーター
+│   ├── codex/                 # Codex SDK 連携 ＆ 対話型 CLI ツール
+│   │   ├── client.ts          # Codex クライアントマネージャー ＆ ワーカースレッド
+│   │   ├── commands.ts        # 動的スラッシュコマンド（/model, /effort 等）
+│   │   ├── config.ts          # モデル設定 ＆ キャッシュローダー
+│   │   └── file-mention.ts    # ワークスペースファイル @ 展開・補完
+│   ├── server/                # Web UI ＆ REST / SSE サーバー
+│   │   ├── server.ts          # HTTP サーバー、ファイル API ＆ SSE 配信
+│   │   ├── harness-runner.ts  # バックグラウンドハーネス実行マネージャー
+│   │   ├── event-bus.ts       # 中央型付きイベントバス
+│   │   ├── events.ts          # イベントスキーマ・プロトコル定義
+│   │   └── web/ui.ts          # 3カラム・ダッシュボード UI（会話、ビューア、ツリー）
+│   ├── schemas/               # Zod スキーマ ＆ 型定義
+│   │   ├── candidate.ts       # 候補実装スキーマ
+│   │   ├── diagnosis.ts       # 仮説・診断モデル
+│   │   ├── evidence.ts        # 構造化証拠レイヤースキーマ
+│   │   ├── research.ts        # 文献・外部調査スキーマ
+│   │   └── result.ts          # 検証結果・メトリクス
 │   ├── git/                   # Git Worktree / ブランチ管理
 │   ├── github/                # 最小権限 GitHub App Broker ＆ ポリシーエンジン
 │   ├── journal/               # 実行ジャーナルと障害復旧リコンシリエーション
@@ -511,7 +584,7 @@ HypoForge/
 │   ├── skills/                # 手続き的スキルの結晶化（SKILL.md）
 │   ├── budget/                # 多次元バジェット・トラッカー
 │   └── trajectory/            # DPO 選好データセット・エクスポーター
-└── tests/                     # Vitest 総合テストスイート（全83テスト合格）
+└── tests/                     # 総合 Vitest テストスイート（全21ファイル・140+テスト合格）
 ```
 
 ---
@@ -540,6 +613,11 @@ pnpm run lint
 - メモリ検証昇格ラダーの状態遷移
 - 差分サイズを優遇しない、性能改善率と証拠強度に基づくパレート順位付け
 - メタモルフィック不変条件検証とテスト改ざん検知
+- 候補エージェントの自律的テスト選択と自動自己修復ループ検証
+- モデル推論およびシグナルパターンによるリサーチ・ルーティング判定
+- パストラバーサル防止セキュリティチェック付き Web UI / REST API ファイル取得
+- 対話型 CLI のスラッシュコマンド、`@` ファイルメンション、インプレース候補巡回
+- 蓄積されたコンテキストとエラー履歴による再実行障害復旧
 
 ---
 

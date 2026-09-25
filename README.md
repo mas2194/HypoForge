@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x%20%2F%207.x-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Vitest](https://img.shields.io/badge/Tests-83%20passed-brightgreen.svg?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Tests-21%20suites%20%2F%20140%2B%20passed-brightgreen.svg?logo=vitest&logoColor=white)](https://vitest.dev/)
 
 **English** | [**日本語**](README.ja.md)
 
@@ -25,20 +25,24 @@ It is designed to counter the **"Minimal-Diff Trap"** (where agents apply short-
   - [2. The Intervention Ladder (L0–L6)](#2-the-intervention-ladder-l0l6)
   - [3. Counterfactual Architecture Check](#3-counterfactual-architecture-check)
   - [4. Divergent Generation & Diversity Gate](#4-divergent-generation--diversity-gate)
-  - [5. Cheap-Falsification-First Scheduling (MAB)](#5-cheap-falsification-first-scheduling-mab)
-  - [6. Parallel Exploration via Isolated Git Worktrees](#6-parallel-exploration-via-isolated-git-worktrees)
-  - [7. Outer Behavior Tree + Inner Deep FSM Controller](#7-outer-behavior-tree--inner-deep-fsm-controller)
-  - [8. Multi-Tier Verification & Metamorphic / Invariant Oracles](#8-multi-tier-verification--metamorphic--invariant-oracles)
-  - [9. Clean-Room Reviewer](#9-clean-room-reviewer)
-  - [10. Structured Evidence Store & Lossless Context Compactor](#10-structured-evidence-store--lossless-context-compactor)
-  - [11. GitHub Broker & Verified Commit SHA Invariant](#11-github-broker--verified-commit-sha-invariant)
-  - [12. Durable SQLite FTS5 Memory & Promotion Ladder](#12-durable-sqlite-fts5-memory--promotion-ladder)
-  - [13. Calibrated DPO Trajectory Exporter](#13-calibrated-dpo-trajectory-exporter)
+  - [5. Model-Directed Research Routing](#5-model-directed-research-routing)
+  - [6. Cheap-Falsification-First Scheduling (MAB)](#6-cheap-falsification-first-scheduling-mab)
+  - [7. Parallel Exploration via Isolated Git Worktrees](#7-parallel-exploration-via-isolated-git-worktrees)
+  - [8. Autonomous Candidate Testing & Self-Repair Feedback Loop](#8-autonomous-candidate-testing--self-repair-feedback-loop)
+  - [9. Outer Behavior Tree + Accumulated Context Recovery](#9-outer-behavior-tree--accumulated-context-recovery)
+  - [10. Multi-Tier Verification & Metamorphic / Invariant Oracles](#10-multi-tier-verification--metamorphic--invariant-oracles)
+  - [11. Clean-Room Reviewer](#11-clean-room-reviewer)
+  - [12. Structured Evidence Store & Lossless Context Compactor](#12-structured-evidence-store--lossless-context-compactor)
+  - [13. GitHub Broker & Verified Commit SHA Invariant](#13-github-broker--verified-commit-sha-invariant)
+  - [14. Durable SQLite FTS5 Memory & Promotion Ladder](#14-durable-sqlite-fts5-memory--promotion-ladder)
+  - [15. Calibrated DPO Trajectory Exporter](#15-calibrated-dpo-trajectory-exporter)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Environment Setup](#environment-setup)
   - [Usage](#usage)
+  - [Interactive Slash Commands & File Completion](#interactive-slash-commands)
+  - [Web UI Server Mode (3-Column Dashboard)](#web-ui-server-mode---server----s)
 - [Configuration](#configuration)
   - [GitHub App Setup](#github-app-setup)
   - [Multi-Dimensional Budget Governor](#multi-dimensional-budget-governor)
@@ -165,7 +169,7 @@ From [AGENTS.md](AGENTS.md):
 
 Candidates first pass baseline-relative hard gates. Qualified candidates are then ranked by measured performance improvement, evidence strength, and verification score, in that order. Candidate ID breaks exact ties deterministically. Architectural intervention level and diff size are recorded as context, not used to rank candidates.
 
-Correctness and regression checks are enforced by the hard gates. The ranking does not directly measure maintainability or architectural coherence, and it does not treat line count as a proxy for either. A larger change is not preferred merely for being larger; candidates rank according to their verified outcomes and evidence.
+Correctness and regression checks are enforced by the hard gates. The ranking does not directly measure maintainability or architectural coherence, and it does not treat line count as a proxy for either. A larger change is not preferred merely for being larger; candidates rank according to their verified outcomes and evidence. For a comprehensive, evidence-based assessment of what is mechanically verified versus empirical hypotheses, see [docs/architecture-evaluation.md](docs/architecture-evaluation.md).
 
 ### 2. The Intervention Ladder (L0–L6)
 
@@ -204,7 +208,14 @@ The system prompts multiple distinct architectural stances in parallel:
 
 The **Diversity Gate** mathematically ensures that surviving candidates are structurally orthogonal before wasting compute on implementation.
 
-### 5. Cheap-Falsification-First Scheduling (MAB)
+### 5. Model-Directed Research Routing
+
+Before launching deep architectural diagnosis, `HypoForge` dynamically determines whether external literature or ecosystem research is required (`src/phases/research-router.ts`):
+- **Model Judgment (`judgeResearchNeed`)**: Prompts the LLM in the task's native language to evaluate whether the goal demands prior-art comparison, protocol RFCs, or domain knowledge not self-contained in the repo.
+- **Pattern Signals**: Automatically flags triggers such as latency/throughput targets, lock-free/concurrency primitives, algorithmic data structure overhauls, core subsystem redesigns, or major API migrations.
+- When routed to `Research`, an autonomous worker queries live documentation and crystallizes structured architectural findings into `CandidateResearchSchema` before diagnosis begins.
+
+### 6. Cheap-Falsification-First Scheduling (MAB)
 
 Before expensive code generation, a dedicated **Falsifier** attempts to break each hypothesis with counter-arguments, race conditions, edge-case proofs, and complexity traps.
 
@@ -216,27 +227,33 @@ $$
 
 Cheap, high-risk tests run first to prune invalid hypotheses with minimal token and runtime expenditure.
 
-### 6. Parallel Exploration via Isolated Git Worktrees
+### 7. Parallel Exploration via Isolated Git Worktrees
 
 Unlike naive agents that pollute the workspace with abandoned intermediate changes, `HypoForge` isolates every candidate into dedicated Git worktrees (`worktrees/run-<id>-<cand>/`):
 - Clean git state with separate working trees.
 - Parallel worker execution in isolated filesystem roots.
 - Automated branch cleanup upon candidate rejection.
 
-### 7. Outer Behavior Tree + Inner Deep FSM Controller
+### 8. Autonomous Candidate Testing & Self-Repair Feedback Loop
 
-The harness employs a dual-control architecture:
+During implementation, candidate workers act with high autonomy while respecting repository conventions (`src/phases/implement.ts`):
+- **Autonomous Check Selection**: Rather than running blindly rigid test commands, workers evaluate whether testing adds useful confidence, selecting appropriate tests, scripts, and scopes from existing fixtures.
+- **Automated Self-Repair Loop (`repairFailedCandidates`)**: If independent harness verification detects failures (e.g. non-zero exit codes, failing test IDs, regression errors), the failure output (up to 20,000 characters) is fed back directly to the candidate's worker thread. The worker diagnoses the failure in its worktree, repairs the underlying defect without altering test intent, reruns checks, and commits the fix for re-verification.
+
+### 9. Outer Behavior Tree + Accumulated Context Recovery
+
+The harness employs a resilient dual-control architecture:
 - **Outer Behavior Tree (BT)**: Manages global strategy, high-level fallbacks, timeouts, retries, and clean-up using `Sequence`, `Selector`, `Parallel`, and decorator nodes (`Tracer`, `Retry`, `Timeout`).
 - **Inner Deep FSM (`DeepController`)**: Orchestrates precision transitions between `Diagnose`, `Falsify`, `Implement`, `Verify`, and `Review`.
+- **Accumulated Context Recovery (`maxAutomaticRestarts`)**: If the Behavior Tree execution returns a failure, the orchestrator preserves the accumulated context—including failed phase, error traces, previous implementations, and verification outcomes (`recoveryHistory`)—and restarts from `Inspect`. Subsequent attempts leverage prior failure evidence to avoid repeating dead-end approaches.
+- **Structured Backtrack Router**: Classifies mid-flight candidate rejections into 5 structured classes:
+  1. `IMPLEMENTATION_ERROR` $\rightarrow$ Jump directly to `Implement`
+  2. `FALSIFICATION_GAP` $\rightarrow$ Jump to `Falsify`
+  3. `ROOT_CAUSE_ERROR` $\rightarrow$ Jump to `Diagnose`
+  4. `EXTERNAL_SPEC` $\rightarrow$ Jump to `Research`
+  5. `REPO_MODEL_ERROR` $\rightarrow$ Jump to `Inspect`
 
-When a candidate fails, the **Backtrack Router** classifies the failure into one of 5 structured classes:
-1. `IMPLEMENTATION_ERROR` $\rightarrow$ Jump directly to `Implement`
-2. `FALSIFICATION_GAP` $\rightarrow$ Jump to `Falsify`
-3. `ROOT_CAUSE_ERROR` $\rightarrow$ Jump to `Diagnose`
-4. `EXTERNAL_SPEC` $\rightarrow$ Jump to `Research`
-5. `REPO_MODEL_ERROR` $\rightarrow$ Jump to `Inspect`
-
-### 8. Multi-Tier Verification & Metamorphic / Invariant Oracles
+### 10. Multi-Tier Verification & Metamorphic / Invariant Oracles
 
 The harness never trusts the LLM's own declaration that code works. Verification is performed mechanically:
 - **Baseline-Relative Hard Gate & Identity Delta**: Computes hash-based set differences of compiler/linter diagnostics ($\text{Cand} \setminus \text{Base} = \emptyset$) to prevent accidental regression masking.
@@ -246,7 +263,7 @@ The harness never trusts the LLM's own declaration that code works. Verification
   - Round-trip serialization: $\text{decode}(\text{encode}(x)) = x$
   - State commutativity and invariant bounds.
 
-### 9. Clean-Room Reviewer
+### 11. Clean-Room Reviewer
 
 Approved candidates are submitted to an independent, blind **Clean-Room Reviewer**:
 - Spawned in an isolated thread with **no prior implementation context** (preventing sunk-cost rationalization).
@@ -254,13 +271,13 @@ Approved candidates are submitted to an independent, blind **Clean-Room Reviewer
 - Given only the PR diff, the original goal, and the verification metrics.
 - Evaluates the change from the perspective of an adversarial principal engineer.
 
-### 10. Structured Evidence Store & Lossless Context Compactor
+### 12. Structured Evidence Store & Lossless Context Compactor
 
 Extended self-healing loops suffer from context pollution. `HypoForge` separates volatile scratchpads from permanent facts:
 - **4-Layer Structured Evidence Store**: Immutable records divided into `Observation`, `Assertion`, `Inference`, and `Decision`.
 - **Context Compactor**: Upon backtrack or phase transitions, transient chat logs and massive stack traces are purged. Only negative constraints, violated invariants, and distilled lessons are preserved into prompt projections.
 
-### 11. GitHub Broker & Verified Commit SHA Invariant
+### 13. GitHub Broker & Verified Commit SHA Invariant
 
 Security and branch integrity are strictly maintained:
 - **Least-Privilege GitHub App**: No raw personal access tokens (PAT) or `GITHUB_TOKEN` credentials are exposed to the LLM. All operations flow through a strictly typed `GitHubBroker`.
@@ -270,7 +287,7 @@ $$
 \text{SHA}_{\text{verified}} \equiv \text{SHA}_{\text{PR}}
 $$
 
-### 12. Durable SQLite FTS5 Memory & Promotion Ladder
+### 14. Durable SQLite FTS5 Memory & Promotion Ladder
 
 Past discoveries, architecture decision records (ADRs), and procedural skills are stored in an embedded SQLite FTS5 database. Knowledge progresses through a monotonic verification lifecycle:
 
@@ -292,7 +309,7 @@ MERGED (1.0)
 
 Problem signatures generated during repository inspection match relevant historical lessons via BM25 full-text indexing, preventing recurrent architectural mistakes across runs.
 
-### 13. Calibrated DPO Trajectory Exporter
+### 15. Calibrated DPO Trajectory Exporter
 
 Execution trajectories are automatically recorded and exported in Direct Preference Optimization (DPO) compatible JSONL datasets (`.agent/trajectories/`). Winning solutions form `chosen` entries while rejected candidates form `rejected` entries, annotated with empirical confidence weights based on reviewer orthogonality and invariant verification depth.
 
@@ -358,18 +375,30 @@ HARNESS_TEST_COMMAND="npm test"
 Run the harness interactively or against a specific engineering objective:
 
 ```bash
-# Interactive mode (Enter: submit, Shift+Enter: newline)
+# Interactive mode (Enter: submit, Shift+Enter: newline, Tab: @ file completion)
 npx tsx src/main.ts
 
 # Directly pass an objective
 npx tsx src/main.ts "Migrate storage layer to SQLite and eliminate duplicate state"
 
-# Directly specify model and reasoning effort via CLI flags
-npx tsx src/main.ts --model gpt-6-sol --effort high "Refactor network layer"
+# Directly specify model (-m) and reasoning effort (-e) via CLI flags
+npx tsx src/main.ts -m gpt-6-sol -e high "Refactor network layer"
+
+# Launch Web UI Server (-s) on custom port (-p)
+npx tsx src/main.ts -s -p 8080
 
 # Or after building
 node dist/main.js
 ```
+
+#### CLI Flags Reference
+
+| Flag | Short | Description | Default |
+|---|---|---|---|
+| `--model <name>` | `-m` | Active LLM / Codex model (e.g. `gpt-6-sol`, `gpt-6-luna`, `o3-mini`) | `gpt-6-luna` (or `OPENAI_MODEL`) |
+| `--effort <level>` | `-e` | Reasoning effort (`minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`, `persistent`) | `medium` |
+| `--server` | `-s` | Start the browser-based Web UI server | `false` (interactive CLI) |
+| `--port <num>` | `-p` | Port number for the Web UI server | `3000` (or `PORT` env) |
 
 #### Interactive Slash Commands
 
@@ -396,7 +425,7 @@ Reference and load workspace files directly into your goal context using `@`:
   - Line range slicing: `@src/main.ts:10-50`
 - **Tab Key (tap) Candidate Completion & Selection**:
   - Type `@` or `@<prefix>` and press **Tab** to list candidate workspace files.
-  - Press **Tab** (or **Down** / **Up** / **Shift+Tab**) to cycle through candidates and select one.
+  - Press **Tab** (or **Down** / **Up** / **Shift+Tab**) to cycle through candidates and select one in place.
   - Press **Enter** or **Space** to confirm the selection and continue typing your prompt (**Esc** to dismiss).
 
 #### Web UI Server Mode (`--server` / `-s`)
@@ -410,26 +439,44 @@ npm run server
 npx tsx src/main.ts --server
 
 # Custom port, model, and reasoning effort
-npx tsx src/main.ts --server --port 8080 --model o3-mini --effort high
+npx tsx src/main.ts -s -p 8080 -m o3-mini -e high
 ```
 
-Open `http://localhost:3000` in your browser for a split-screen dashboard:
-- **Left Pane (Model Conversation)**:
+Open `http://localhost:3000` in your browser for a modern **3-Column Dashboard**:
+
+- **Left Pane (Model Conversation & Controls)**:
   - Chat interface to submit engineering goals, converse with the agent, and inspect progress.
-  - Full support for `@<file>` auto-completion dropdown and slash commands (`/model`, `/effort`, `/help`).
-  - Dynamic model and reasoning effort switcher in the top bar.
-- **Right Pane (Harness Stage Graph & Codex Sub-Agent Activity)**:
-  - **Harness Stage Pipeline Graph**: Real-time visualization of pipeline stages (`Inspect` → `Triage` → `Explore` → `Integrate` → `Publish` → `Learn`) with live status indicators and interactive phase filtering.
-  - **Codex Sub-Agent Activity Panel**: Sub-agent thoughts, tool activity, generated output, and logs render inline as they arrive, alongside phase summaries. Selecting `Explore` reveals its ordered phase flow (`Research` through `Review`); phase steps jump to their activity in the panel.
+  - Header controls for dynamic model switching and reasoning effort selection.
+  - Quick-action chips (`@src/main.ts`, `/help`, etc.) and `@<file>` auto-completion dropdown.
+  - Supports all interactive slash commands (`/model`, `/effort`, `/status`, `/help`).
+- **Center Pane (File Content & Pipeline / Activity View)**:
+  - **`📄 File Content` Tab**:
+    - High-fidelity file viewer with syntax highlighting (TypeScript/JavaScript, JSON, Python, HTML, CSS, Markdown, Shell).
+    - Line numbering, language badge, line count, and file size indicators.
+    - Word wrap toggle, one-click `@ Mention` insertion into chat, and clipboard copy.
+  - **`📊 Pipeline & Activity` Tab**:
+    - **Harness Stage Pipeline Graph**: Real-time interactive visualization of pipeline stages (`Inspect` → `Triage` → `Explore` → `Integrate` → `Publish` → `Learn`) with live status indicators and phase-click filtering.
+    - **Explore Flow Navigator**: Visualizes the ordered exploration steps (`Research` through `Review`) with direct jumps to corresponding sub-agent activity.
+    - **Codex Sub-Agent Activity Panel**: Real-time stream of sub-agent thoughts, tool execution, generated output, logs, and phase summaries.
+- **Right Pane (Workspace File Tree)**:
+  - Full workspace file tree browser with real-time text search and directory expand/collapse.
+  - Clicking any file opens it instantly in the center File Content viewer.
+  - Dedicated `@` button next to each file to insert its mention directly into the chat input.
+- **REST & SSE Endpoints**:
+  - `GET /api/file?path=<path>`: Safe workspace file retrieval with strict path traversal prevention.
+  - `POST /api/chat`, `GET /api/events` (Server-Sent Events), `GET /api/status`, `GET /api/models`, `GET /api/files`.
 
 During execution, `HypoForge` will:
 1. Inspect the repository AST, topology, and invariant contracts.
-2. Formulate diagnostic hypotheses across multiple intervention levels.
-3. Subject hypotheses to counter-argument falsification.
-4. Spawn isolated Git worktrees and implement surviving candidates.
-5. Execute compiler, test suite, and invariant oracles against all candidates.
-6. Submit the winning candidate to clean-room review.
-7. Integrate the verified commit into the workspace or publish an authenticated GitHub Pull Request.
+2. Route external research if needed based on model judgment and pattern signals.
+3. Formulate diagnostic hypotheses across multiple intervention levels.
+4. Subject hypotheses to counter-argument falsification and MAB scheduling.
+5. Spawn isolated Git worktrees and implement surviving candidates with autonomous check selection.
+6. Trigger automated self-repair feedback loops if tests fail during candidate verification.
+7. Execute compiler, test suite, and invariant oracles against all candidates.
+8. Submit the winning candidate to clean-room review.
+9. Integrate the verified commit into the workspace or publish an authenticated GitHub Pull Request.
+10. If execution fails, automatically restart from Inspect with accumulated context and error history.
 
 ---
 
@@ -473,6 +520,8 @@ const harness = new HarnessStateMachine({
 HypoForge/
 ├── AGENTS.md                  # Engineering principles & negative constraints
 ├── .env.example               # Environment variables template
+├── docs/
+│   └── architecture-evaluation.md # Evidence-based evaluation & limitations analysis
 ├── prompts/                   # Specialized system prompts for each agent role
 │   ├── architect.md           # Divergent hypothesis generator
 │   ├── falsifier.md           # Adversarial counter-argument reviewer
@@ -480,27 +529,51 @@ HypoForge/
 │   ├── researcher.md          # External specification & literature investigator
 │   └── reviewer.md            # Clean-room blind peer reviewer
 ├── src/
-│   ├── main.ts                # CLI entry point
-│   ├── bt/                    # Behavior Tree engine (Composites, Decorators, Nodes)
+│   ├── main.ts                # CLI & Web Server entry point
+│   ├── bt/                    # Behavior Tree engine (Composites, Decorators, Action nodes)
 │   ├── orchestrator/          # Hybrid Orchestration (BT, Deep FSM, Evidence Store, Compactor)
+│   │   ├── orchestrator.ts    # Top-level orchestrator with accumulated context recovery
+│   │   ├── actions.ts         # Behavior tree action execution & state binding
 │   │   ├── tree.ts            # Behavior tree structure definition
 │   │   ├── deep-controller.ts # Inner FSM controller for deep exploration
 │   │   ├── backtrack-router.ts# Structured 5-class failure routing
 │   │   ├── evidence-store.ts  # 4-layer immutable structured evidence store
-│   │   └── compactor.ts       # Context distillation and state compactor
+│   │   ├── compactor.ts       # Context distillation and state compactor
+│   │   ├── context.ts         # Harness & attempt context definitions
+│   │   └── state-machine.ts   # Public facade API
 │   ├── phases/                # Autonomous execution phases
 │   │   ├── inspect-repo.ts    # Codebase topology, AST & invariant inspection
 │   │   ├── triage.ts          # Fast vs Deep execution path router
+│   │   ├── research-router.ts # Model-directed & pattern-based research router
+│   │   ├── research.ts        # External & literature research worker
 │   │   ├── architect.ts       # Intervention Ladder hypothesis generator
 │   │   ├── diversity-gate.ts  # Orthogonal candidate filter
+│   │   ├── adaptive-scheduler.ts # Information-gain / cost MAB candidate scheduler
 │   │   ├── falsify.ts         # Adversarial counter-argument scrutiny
-│   │   ├── implement.ts       # Worktree-isolated code synthesis
+│   │   ├── implement.ts       # Worktree-isolated code synthesis & self-repair loop
 │   │   └── review.ts          # Blind clean-room reviewer
 │   ├── evaluator/             # Verification engines & oracles
 │   │   ├── runner.ts          # Machine test & benchmark runner
 │   │   ├── integrity.ts       # Test & fixture anti-tampering gate
 │   │   ├── oracle.ts          # Tier 3 metamorphic / invariant oracles
 │   │   └── pareto.ts          # Multi-objective Pareto / lexicographic sorter
+│   ├── codex/                 # Codex SDK integration & CLI interactive tools
+│   │   ├── client.ts          # Codex client manager & worker threads
+│   │   ├── commands.ts        # Dynamic slash commands (/model, /effort, etc.)
+│   │   ├── config.ts          # Model configuration & cache loader
+│   │   └── file-mention.ts    # Workspace @file loading, parsing & completion
+│   ├── server/                # Web UI & REST / SSE Server
+│   │   ├── server.ts          # HTTP server, file API & SSE dispatching
+│   │   ├── harness-runner.ts  # Background harness execution manager
+│   │   ├── event-bus.ts       # Central typed harness event bus
+│   │   ├── events.ts          # Event schemas & protocol definitions
+│   │   └── web/ui.ts          # 3-column dashboard UI (Chat, Viewer, File Tree)
+│   ├── schemas/               # Zod schemas & typed domain models
+│   │   ├── candidate.ts       # Candidate implementation schemas
+│   │   ├── diagnosis.ts       # Hypothesis & diagnosis models
+│   │   ├── evidence.ts        # Structured evidence layer schemas
+│   │   ├── research.ts        # Literature & external research schemas
+│   │   └── result.ts          # Verification results & metrics
 │   ├── git/                   # Git worktree & branch manager
 │   ├── github/                # Authenticated GitHub App broker & policy engine
 │   ├── journal/               # Execution journal & crash-recovery reconciliation
@@ -508,7 +581,7 @@ HypoForge/
 │   ├── skills/                # Reusable procedural skill crystallization (SKILL.md)
 │   ├── budget/                # Multi-dimensional budget tracker
 │   └── trajectory/            # DPO preference dataset exporter
-└── tests/                     # Vitest comprehensive test suites (83 tests)
+└── tests/                     # Comprehensive Vitest suites (21 files, 140+ tests)
 ```
 
 ---
@@ -537,6 +610,11 @@ Test coverage includes:
 - Verification promotion ladder state transitions.
 - Pareto ranking by measured performance and evidence strength, without diff-size preference.
 - Metamorphic invariant validation and test integrity verification.
+- Candidate autonomous testing and automated self-repair loop diagnostics.
+- Model-directed and pattern-based research routing decisions.
+- Web UI & REST API safe file retrieval with path traversal security checks.
+- Interactive CLI slash commands, `@` file mentions, and in-place candidate cycling.
+- Accumulated context recovery and automatic restart across failed runs.
 
 ---
 
