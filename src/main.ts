@@ -22,6 +22,8 @@ import {
   resolveFileMentions,
 } from "./codex/file-mention.js";
 import { startWebServer } from "./server/server.js";
+import { verifyGitEnvironment } from "./git/check.js";
+import { verifyCodexAuth } from "./codex/check.js";
 
 interface CandidateCycleState {
   active: boolean;
@@ -395,6 +397,9 @@ export function parseCliArgs(args: string[]): {
 async function main() {
   console.log("=== Autonomous Agent Harness Starting ===");
   console.log("Mode: Evidence-based Architecture Exploration (MVP)");
+
+  await verifyGitEnvironment();
+  await verifyCodexAuth();
 
   const cliParsed = parseCliArgs(process.argv.slice(2));
 
