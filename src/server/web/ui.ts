@@ -1744,7 +1744,18 @@ export function renderWebUI(): string {
       }
 
       agent.status = agentEvent.status || agent.status;
-      if (agentEvent.message || agentEvent.details) agent.events.push({ ...agentEvent });
+      if (agentEvent.message || agentEvent.details) {
+        if (agentEvent.agentId === "agent-reviewer") {
+          if (agentEvent.type === "start") {
+            // A new review run starts a fresh outcome while keeping prior activity visible.
+            agent.events = agent.events.filter((event) => event.type !== "result" && event.type !== "finish");
+          } else if (agentEvent.type === "result" || agentEvent.type === "finish") {
+            // Keep only the latest candidate's review decision and reason.
+            agent.events = agent.events.filter((event) => event.type !== "result" && event.type !== "finish");
+          }
+        }
+        agent.events.push({ ...agentEvent });
+      }
 
       if (agentEvent.type === "finish" && agentEvent.details && Object.keys(agentEvent.details).length) {
         appendChatMessage({

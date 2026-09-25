@@ -1000,13 +1000,20 @@ export async function cleanRoomReviewAction(ctx: HarnessContext): Promise<NodeSt
   // All candidates in the queue were rejected
   console.warn(`[Phase: Review] All candidates in queue were rejected by clean-room audit.`);
   ctx.winner = undefined;
+  const latestRejection = ctx.rejectedCandidates[ctx.rejectedCandidates.length - 1];
+  const latestCandidateId = latestRejection?.candidate.implementation.candidateId;
+  const latestIssues = latestRejection?.blockingIssues ?? ctx.review?.blockingIssues ?? [];
+  const latestRejectionSummary = latestCandidateId
+    ? `Candidate '${latestCandidateId}' REJECTED: ${latestIssues.join("; ")}`
+    : "All candidates in queue were rejected by clean-room audit.";
   emitSubAgentFinish(
     ctx,
     "agent-reviewer",
     "Clean-Room Auditor",
     "Verify solution invariants without author bias or self-evaluation drift",
     "failed",
-    "All candidates in queue were rejected by clean-room audit."
+    latestRejectionSummary,
+    ctx.review ? { review: ctx.review } : undefined
   );
   emitPhaseChange(ctx, "failed", "All candidates rejected by clean-room audit");
   return "FAILURE";
