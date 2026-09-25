@@ -10,7 +10,7 @@ export function renderWebUI(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Autonomous Agent Harness</title>
+  <title>RefuteFlow - Autonomous Agent Harness</title>
   <style>
     :root {
       --bg-primary: #0f1117;
@@ -1230,8 +1230,8 @@ export function renderWebUI(): string {
   <!-- Top Navigation Header -->
   <header>
     <div class="brand">
-      <div class="brand-logo">H</div>
-      <span>HypoForge</span>
+      <div class="brand-logo">RF</div>
+      <span>RefuteFlow</span>
       <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">| Autonomous Architecture Explorer</span>
     </div>
 

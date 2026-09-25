@@ -8,7 +8,7 @@ import { TrajectoryExporter } from "../src/trajectory/exporter.js";
 import type { HarnessContext } from "../src/orchestrator/context.js";
 import { Phase } from "../src/orchestrator/context.js";
 
-describe("Hermes-inspired Capabilities for my_harness", () => {
+describe("Hermes-inspired Capabilities for RefuteFlow", () => {
   let tmpDir: string;
 
   beforeEach(async () => {

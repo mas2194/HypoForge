@@ -332,26 +332,26 @@ GitHub Releases から macOS 用スタンドアロン実行ファイルをダウ
 
 ```bash
 # 最新の Universal バイナリ（arm64 / x86_64）をダウンロードして展開
-curl -fsSL https://github.com/mas2194/my_harness/releases/latest/download/my_harness-darwin-universal.tar.gz | tar -xz
-chmod +x my_harness
-sudo mv my_harness /usr/local/bin/
+curl -fsSL https://github.com/mas2194/RefuteFlow/releases/latest/download/rf-darwin-universal.tar.gz | tar -xz
+chmod +x rf
+sudo mv rf /usr/local/bin/
 
 # 実行
-my_harness /help
+rf /help
 ```
 
 ソースコードから macOS 実行ファイルをビルドする場合：
 ```bash
 npm run build:binary
-# release/ ディレクトリに arm64, x64, universal 実行ファイルおよび tar.gz が生成されます
+# release/ ディレクトリに rf-darwin-arm64, rf-darwin-x64, rf-darwin-universal 実行ファイルおよび tar.gz が生成されます
 ```
 
 ### ソースコードからのインストール
 
 ```bash
 # リポジトリのクローン
-git clone https://github.com/mas2194/my_harness.git
-cd my_harness
+git clone https://github.com/mas2194/RefuteFlow.git
+cd RefuteFlow
 
 # 依存パッケージのインストール
 pnpm install
@@ -399,19 +399,17 @@ HARNESS_TEST_COMMAND="npm test"
 
 ```bash
 # 対話型モード（Enter: 送信、Shift+Enter: 改行、Tab: @ ファイル補完）
-npx tsx src/main.ts
+rf
+# または: npx tsx src/bin.ts
 
 # 直接目標（ゴール）を指定して実行
-npx tsx src/main.ts "Migrate storage layer to SQLite and eliminate duplicate state"
+rf "Migrate storage layer to SQLite and eliminate duplicate state"
 
 # モデル（-m）や推論Effort（-e）を直接指定して実行
-npx tsx src/main.ts -m gpt-6-sol -e high "Refactor network layer"
+rf -m gpt-6-sol -e high "Refactor network layer"
 
 # Web UI サーバーモード（-s）をポート指定（-p）で起動
-npx tsx src/main.ts -s -p 8080
-
-# またはビルド後の実行
-node dist/main.js
+rf -s -p 8080
 ```
 
 #### CLI フラグ一覧

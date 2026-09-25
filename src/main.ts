@@ -395,7 +395,7 @@ export function parseCliArgs(args: string[]): {
 }
 
 export async function main() {
-  console.log("=== Autonomous Agent Harness Starting ===");
+  console.log("=== RefuteFlow (rf) Starting ===");
   console.log("Mode: Evidence-based Architecture Exploration (MVP)");
 
   await verifyGitEnvironment();
@@ -544,13 +544,11 @@ export async function main() {
   }
 }
 
-// Only invoke main when run directly as CLI entrypoint
+// Only invoke main when run directly as CLI entrypoint (and not when imported by bin.ts)
 const isDirectRun =
-  import.meta.url === `file://${process.argv[1]}` ||
-  process.argv[1]?.endsWith("src/main.ts") ||
-  process.argv[1]?.endsWith("dist/main.js") ||
-  process.argv[1]?.endsWith("src/bin.ts") ||
-  process.argv[1]?.endsWith("dist/bin.js");
+  Boolean(process.argv[1]) &&
+  (process.argv[1].endsWith("src/main.ts") ||
+    process.argv[1].endsWith("dist/main.js"));
 
 if (isDirectRun) {
   main().catch((err) => {

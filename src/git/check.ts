@@ -41,7 +41,7 @@ export async function checkGitEnvironment(options: VerifyGitOptions = {}): Promi
       message:
         "============================================================\n" +
         "⚠️  [Git] git コマンドが見つかりません。\n" +
-        "    HypoForge の実行には Git が必要です。\n" +
+        "    RefuteFlow (rf) の実行には Git が必要です。\n" +
         "    Git をインストールし、PATH に設定されていることを確認してください。\n" +
         "    (Git command not found. Please ensure Git is installed and in your PATH.)\n" +
         "============================================================",

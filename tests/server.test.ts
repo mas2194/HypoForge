@@ -97,7 +97,7 @@ describe("Web Server and Server Mode", () => {
       expect(fileRes.status).toBe(200);
       const fileData = await fileRes.json();
       expect(fileData.path).toBe("package.json");
-      expect(fileData.content).toContain("my_harness");
+      expect(fileData.content).toContain("refuteflow");
       expect(fileData.lines).toBeGreaterThan(0);
       expect(fileData.bytes).toBeGreaterThan(0);
       expect(fileData.language).toBe("json");

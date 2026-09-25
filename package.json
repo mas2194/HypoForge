@@ -1,18 +1,19 @@
 {
-  "name": "my_harness",
+  "name": "refuteflow",
   "version": "0.1.0",
-  "description": "Autonomous Agent Harness for Evidence-based Architecture Exploration",
+  "description": "RefuteFlow: Autonomous Agent Harness for Evidence-based Architecture Exploration",
   "type": "module",
   "main": "dist/main.js",
   "bin": {
-    "my_harness": "dist/bin.js"
+    "rf": "dist/bin.js",
+    "refuteflow": "dist/bin.js"
   },
   "scripts": {
     "build": "tsc",
     "build:binary": "bash scripts/build-macos-binary.sh",
     "dev": "tsx watch src/main.ts",
-    "start": "tsx src/main.ts",
-    "server": "tsx src/main.ts --server",
+    "start": "tsx src/bin.ts",
+    "server": "tsx src/bin.ts --server",
     "test": "vitest run --fileParallelism=false",
     "test:watch": "vitest --fileParallelism=false",
     "lint": "tsc --noEmit"

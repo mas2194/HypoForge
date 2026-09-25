@@ -139,7 +139,7 @@ describe("Production Extensions: Integrity, Triage, Journal & Invalidation", () 
           addedLines: 20,
           deletedLines: 5,
         },
-        repo: "my_harness",
+        repo: "RefuteFlow",
         commitHash: "abc1234",
         candidateId: "cand-1",
         interventionLevel: "L6_architecture",

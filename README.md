@@ -329,26 +329,26 @@ Download pre-built standalone macOS executables from GitHub Releases (Universal 
 
 ```bash
 # Download and extract the latest Universal macOS binary
-curl -fsSL https://github.com/mas2194/my_harness/releases/latest/download/my_harness-darwin-universal.tar.gz | tar -xz
-chmod +x my_harness
-sudo mv my_harness /usr/local/bin/
+curl -fsSL https://github.com/mas2194/RefuteFlow/releases/latest/download/rf-darwin-universal.tar.gz | tar -xz
+chmod +x rf
+sudo mv rf /usr/local/bin/
 
 # Run
-my_harness /help
+rf /help
 ```
 
 To build macOS executables from source:
 ```bash
 npm run build:binary
-# Generates arm64, x64, and universal executables in release/
+# Generates rf-darwin-arm64, rf-darwin-x64, and rf-darwin-universal in release/
 ```
 
 ### Installation from Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/mas2194/my_harness.git
-cd my_harness
+git clone https://github.com/mas2194/RefuteFlow.git
+cd RefuteFlow
 
 # Install dependencies
 pnpm install
@@ -396,19 +396,17 @@ Run the harness interactively or against a specific engineering objective:
 
 ```bash
 # Interactive mode (Enter: submit, Shift+Enter: newline, Tab: @ file completion)
-npx tsx src/main.ts
+rf
+# or: npx tsx src/bin.ts
 
 # Directly pass an objective
-npx tsx src/main.ts "Migrate storage layer to SQLite and eliminate duplicate state"
+rf "Migrate storage layer to SQLite and eliminate duplicate state"
 
 # Directly specify model (-m) and reasoning effort (-e) via CLI flags
-npx tsx src/main.ts -m gpt-6-sol -e high "Refactor network layer"
+rf -m gpt-6-sol -e high "Refactor network layer"
 
 # Launch Web UI Server (-s) on custom port (-p)
-npx tsx src/main.ts -s -p 8080
-
-# Or after building
-node dist/main.js
+rf -s -p 8080
 ```
 
 #### CLI Flags Reference

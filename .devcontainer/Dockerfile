@@ -19,5 +19,5 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 RUN npm install -g @openai/codex
 
 # Set working directory permissions
-WORKDIR /workspaces/my_harness
+WORKDIR /workspaces/RefuteFlow
 USER node

@@ -169,7 +169,7 @@ describe("Phase 2 Architectural Refinements", () => {
           addedLines: 20,
           deletedLines: 5,
         },
-        repo: "my_harness",
+        repo: "RefuteFlow",
         commitHash: "branch-q",
         candidateId: "cand-q",
         interventionLevel: "L2_subsystem_refactor",

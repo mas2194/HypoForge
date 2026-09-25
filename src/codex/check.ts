@@ -71,7 +71,7 @@ export async function checkCodexAuth(options: VerifyCodexAuthOptions = {}): Prom
         message:
           "============================================================\n" +
           "⚠️  [Codex] codex コマンドが見つかりません。\n" +
-          "    HypoForge の推論実行には Codex CLI (@openai/codex) が必要です。\n" +
+          "    RefuteFlow (rf) の推論実行には Codex CLI (@openai/codex) が必要です。\n" +
           "    Codex CLI をインストールし、'codex login' でログインしてください。\n" +
           "    (Codex CLI not found. Please install it and run 'codex login'.)\n" +
           "============================================================",
@@ -98,7 +98,7 @@ export async function checkCodexAuth(options: VerifyCodexAuthOptions = {}): Prom
     message:
       "============================================================\n" +
       "⚠️  [Codex] Codex にログインしていません。\n" +
-      "    HypoForge を使用するには、Codex の認証が必要です。\n" +
+      "    RefuteFlow (rf) を使用するには、Codex の認証が必要です。\n" +
       "    以下のいずれかの方法でログインまたは認証を設定してください:\n\n" +
       "      1. ChatGPT アカウントでログイン (推奨):\n" +
       "         codex login\n\n" +

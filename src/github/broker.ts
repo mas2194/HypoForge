@@ -104,7 +104,7 @@ export class GitHubBroker {
     if (this.dryRun || !this.octokit || !this.owner || !this.repo) {
       console.log(`[GitHub Broker (Dry Run)] Created Pull Request for ${params.head} -> ${params.base}`);
       return {
-        url: `https://github.com/${this.owner ?? "mas2194"}/${this.repo ?? "my_harness"}/pull/mock`,
+        url: `https://github.com/${this.owner ?? "mas2194"}/${this.repo ?? "RefuteFlow"}/pull/mock`,
         number: 42,
       };
     }
