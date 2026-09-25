@@ -50,6 +50,12 @@ describe("Web Server and Server Mode", () => {
       expect(htmlText).toContain("Model Conversation");
       expect(htmlText).toContain("Harness Stage Pipeline");
       expect(htmlText).toContain("Codex Sub-Agent Activity");
+      expect(htmlText).toContain("viewer-pane");
+      expect(htmlText).toContain("filetree-pane");
+      expect(htmlText).toContain("File Content");
+      expect(htmlText).toContain("Workspace");
+      expect(htmlText).toContain("hl-keyword");
+      expect(htmlText).toContain("hl-string");
       expect(htmlText).toContain("input-toolbar");
       expect(htmlText).toContain("model-select");
       expect(htmlText).toContain("effort-select");
@@ -84,6 +90,29 @@ describe("Web Server and Server Mode", () => {
       expect(filesRes.status).toBe(200);
       const filesData = await filesRes.json();
       expect(Array.isArray(filesData)).toBe(true);
+      expect(filesData).toContain("package.json");
+
+      // 5. GET /api/file (File content inspection)
+      const fileRes = await fetch(`${base}/api/file?path=package.json`);
+      expect(fileRes.status).toBe(200);
+      const fileData = await fileRes.json();
+      expect(fileData.path).toBe("package.json");
+      expect(fileData.content).toContain("my_harness");
+      expect(fileData.lines).toBeGreaterThan(0);
+      expect(fileData.bytes).toBeGreaterThan(0);
+      expect(fileData.language).toBe("json");
+
+      // 5a. Missing path param -> 400
+      const missingParamRes = await fetch(`${base}/api/file`);
+      expect(missingParamRes.status).toBe(400);
+
+      // 5b. Nonexistent file -> 404
+      const nonexistentRes = await fetch(`${base}/api/file?path=does-not-exist.txt`);
+      expect(nonexistentRes.status).toBe(404);
+
+      // 5c. Path traversal prevention -> 403
+      const traversalRes = await fetch(`${base}/api/file?path=../../etc/passwd`);
+      expect(traversalRes.status).toBe(403);
     });
 
     it("handles slash commands via POST /api/command to change model and effort", async () => {

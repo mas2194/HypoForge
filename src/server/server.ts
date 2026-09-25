@@ -1,8 +1,9 @@
 import * as http from "node:http";
+import * as path from "node:path";
 import type { ModelReasoningEffort } from "@openai/codex-sdk";
 import { HarnessRunner } from "./harness-runner.js";
 import { renderWebUI } from "./web/ui.js";
-import { listWorkspaceFiles } from "../codex/file-mention.js";
+import { listWorkspaceFiles, loadFileContent, getLanguageForPath } from "../codex/file-mention.js";
 import { loadCachedModels } from "../codex/config.js";
 
 export interface ServerOptions {
@@ -113,6 +114,45 @@ export async function startWebServer(options: ServerOptions = {}): Promise<Runni
         res.end(JSON.stringify(files));
       } catch (err: any) {
         res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
+
+    // 5b. Workspace Single File Content API
+    if (pathname === "/api/file" && req.method === "GET") {
+      const filePath = url.searchParams.get("path");
+      if (!filePath) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Missing 'path' query parameter" }));
+        return;
+      }
+
+      try {
+        const repoRoot = path.resolve(process.cwd());
+        const resolved = path.isAbsolute(filePath) ? path.resolve(filePath) : path.resolve(repoRoot, filePath);
+        const rel = path.relative(repoRoot, resolved);
+        if (rel.startsWith("..") || path.isAbsolute(rel)) {
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Access denied: outside workspace root" }));
+          return;
+        }
+
+        const loaded = await loadFileContent(filePath, repoRoot);
+        const language = getLanguageForPath(filePath);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            path: loaded.path,
+            fullPath: loaded.fullPath,
+            content: loaded.content,
+            bytes: loaded.bytes,
+            lines: loaded.content.split("\n").length,
+            language,
+          })
+        );
+      } catch (err: any) {
+        res.writeHead(404, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: err.message }));
       }
       return;

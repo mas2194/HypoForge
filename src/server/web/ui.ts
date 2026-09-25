@@ -143,11 +143,11 @@ export function renderWebUI(): string {
       border-color: var(--border-focus);
     }
 
-    /* Main Container (Split Screen) */
+    /* Main Container (3-Column Layout: Chat | File Content | File Tree) */
     .app-main {
       flex: 1;
       display: grid;
-      grid-template-columns: 42% 58%;
+      grid-template-columns: 34% 44% 22%;
       height: calc(100vh - 52px);
       overflow: hidden;
     }
@@ -465,6 +465,355 @@ export function renderWebUI(): string {
 
     .autocomplete-item:hover, .autocomplete-item.selected {
       background: #1f6feb;
+      color: #fff;
+    }
+
+    /* Center Pane: File Viewer & Activity Tabs */
+    .viewer-pane {
+      background: var(--bg-primary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .viewer-header {
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-shrink: 0;
+      min-height: 44px;
+    }
+
+    .viewer-tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .viewer-tab {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .viewer-tab:hover {
+      color: var(--text-primary);
+      background: var(--bg-tertiary);
+    }
+
+    .viewer-tab.active {
+      color: var(--accent-blue);
+      background: var(--bg-tertiary);
+      border-color: var(--border-color);
+      font-weight: 600;
+    }
+
+    .viewer-tab-badge {
+      background: var(--accent-blue);
+      color: #fff;
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 10px;
+      display: inline-block;
+    }
+
+    .viewer-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .file-content-view {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: #0d1117;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .file-meta-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 14px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .file-path-display {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-stats-display {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .badge-lang {
+      font-size: 10px;
+      padding: 1px 6px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--accent-purple);
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    .file-code-wrapper {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .line-numbers {
+      padding: 12px 10px 12px 14px;
+      text-align: right;
+      color: var(--text-muted);
+      user-select: none;
+      background: #090d13;
+      border-right: 1px solid var(--border-color);
+      flex-shrink: 0;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    .code-content {
+      padding: 12px 16px;
+      color: #e6edf3;
+      white-space: pre;
+      overflow-x: auto;
+      flex: 1;
+      tab-size: 2;
+      font-family: inherit;
+      font-size: 12px;
+      line-height: 1.6;
+      margin: 0;
+      background: transparent;
+      border: none;
+    }
+
+    .code-content.wrapped {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Syntax Highlighting */
+    .hl-keyword { color: #ff7b72; font-weight: 600; }
+    .hl-type { color: #ffa657; }
+    .hl-string { color: #a5d6ff; }
+    .hl-number { color: #79c0ff; }
+    .hl-boolean { color: #ff7b72; font-weight: 600; }
+    .hl-comment { color: #8b949e; font-style: italic; }
+    .hl-function { color: #d2a8ff; }
+    .hl-property { color: #7ee787; }
+    .hl-operator { color: #ff7b72; }
+    .hl-tag { color: #7ee787; font-weight: 600; }
+    .hl-attr { color: #79c0ff; }
+    .hl-heading { color: #58a6ff; font-weight: bold; }
+
+    .empty-viewer-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 20px;
+      color: var(--text-muted);
+      user-select: none;
+      text-align: center;
+    }
+
+    .pipeline-activity-view {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-primary);
+    }
+
+    /* Rightmost Pane: File Tree Explorer */
+    .filetree-pane {
+      background: var(--bg-secondary);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .filetree-header {
+      padding: 10px 14px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .filetree-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .filetree-search-bar {
+      padding: 6px 10px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .filetree-search-input {
+      flex: 1;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: var(--text-primary);
+      font-size: 11.5px;
+      outline: none;
+    }
+
+    .filetree-search-input:focus {
+      border-color: var(--border-focus);
+    }
+
+    .filetree-content {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 6px 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .tree-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+      color: var(--text-secondary);
+      transition: background 0.1s, color 0.1s;
+      position: relative;
+    }
+
+    .tree-row:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .tree-row.selected {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent-blue);
+      font-weight: 500;
+    }
+
+    .tree-row.is-dir {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .tree-indent {
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .tree-chevron {
+      width: 12px;
+      height: 12px;
+      font-size: 9px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .tree-icon {
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .tree-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    .tree-actions {
+      display: none;
+      align-items: center;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    .tree-row:hover .tree-actions {
+      display: flex;
+    }
+
+    .tree-action-btn {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      color: var(--text-muted);
+      font-size: 10px;
+      padding: 1px 5px;
+      cursor: pointer;
+    }
+
+    .tree-action-btn:hover {
+      background: var(--border-focus);
       color: #fff;
     }
 
@@ -989,89 +1338,163 @@ export function renderWebUI(): string {
       </div>
     </div>
 
-    <!-- Right Pane: Pipeline Graph & Sub-Agents -->
-    <div class="right-pane">
-      <!-- Pipeline Stage Graph -->
-      <div class="graph-section">
-        <div class="graph-header">
-          <span>Harness Stage Pipeline</span>
-          <span id="current-phase-display" style="font-family: var(--font-mono); color: var(--accent-blue);">Phase: Idle</span>
+    <!-- Center Pane: File Content Viewer (between Chat and File Tree) -->
+    <div class="viewer-pane" id="viewer-pane">
+      <div class="viewer-header">
+        <div class="viewer-tabs">
+          <button class="viewer-tab active" id="tab-file-btn" onclick="switchViewerTab('file')">
+            <span>📄 File Content</span>
+          </button>
+          <button class="viewer-tab" id="tab-activity-btn" onclick="switchViewerTab('activity')">
+            <span>📊 Pipeline & Activity</span>
+            <span class="viewer-tab-badge" id="activity-tab-badge" style="display: none;">0</span>
+          </button>
         </div>
 
-        <div class="graph-canvas" id="graph-canvas">
-          <!-- Dynamically populated or rendered stages -->
-          <div class="stage-node pending" id="node-Inspect" onclick="filterByPhase('Inspect')">
-            <div class="stage-icon">🔍</div>
-            <div class="stage-label">Inspect</div>
-            <div class="stage-sub">Topology</div>
-          </div>
-          <div class="stage-arrow">➔</div>
-
-          <div class="stage-node pending" id="node-Triage" onclick="filterByPhase('Triage')">
-            <div class="stage-icon">⚖️</div>
-            <div class="stage-label">Triage</div>
-            <div class="stage-sub">Fast/Deep</div>
-          </div>
-          <div class="stage-arrow">➔</div>
-
-          <div class="stage-node pending" id="node-Explore" onclick="filterByPhase('Explore')">
-            <div class="stage-icon">🔬</div>
-            <div class="stage-label">Explore</div>
-            <div class="stage-sub">Ladder</div>
-          </div>
-          <div class="stage-arrow">➔</div>
-
-          <div class="stage-node pending" id="node-Integrate" onclick="filterByPhase('Integrate')">
-            <div class="stage-icon">🔗</div>
-            <div class="stage-label">Integrate</div>
-            <div class="stage-sub">Lock SHA</div>
-          </div>
-          <div class="stage-arrow">➔</div>
-
-          <div class="stage-node pending" id="node-Publish" onclick="filterByPhase('Publish')">
-            <div class="stage-icon">🚀</div>
-            <div class="stage-label">Publish</div>
-            <div class="stage-sub">GitHub PR</div>
-          </div>
-          <div class="stage-arrow">➔</div>
-
-          <div class="stage-node pending" id="node-Learn" onclick="filterByPhase('Learn')">
-            <div class="stage-icon">📚</div>
-            <div class="stage-label">Learn</div>
-            <div class="stage-sub">ADR & Skills</div>
-          </div>
+        <div class="viewer-actions" id="file-viewer-actions" style="display: none;">
+          <button class="chip-btn" id="wrap-toggle-btn" onclick="toggleWrap()" title="Toggle word wrap">Wrap: Off</button>
+          <button class="chip-btn" id="mention-file-btn" onclick="mentionActiveFile()" title="Insert @filename into chat">@ Mention</button>
+          <button class="chip-btn" id="copy-file-btn" onclick="copyFileContent()" title="Copy file contents">Copy</button>
         </div>
       </div>
 
-      <div class="explore-flow" id="explore-flow" aria-label="Explore phase flow">
-        <div class="explore-flow-title">EXPLORE FLOW · SELECT A STEP TO JUMP TO ITS ACTIVITY</div>
-        <div class="explore-flow-steps" id="explore-flow-steps"></div>
-      </div>
-
-      <!-- Codex Sub-Agent Activity Panel -->
-      <div class="subagent-section">
-        <div class="subagent-header">
-          <div class="subagent-title">
-            <span>Codex Sub-Agent Activity</span>
-            <span id="agent-count-badge" class="badge running">0 Active</span>
+      <!-- File Content View -->
+      <div class="file-content-view" id="file-content-view">
+        <div class="file-meta-bar" id="file-meta-bar" style="display: none;">
+          <div class="file-path-display">
+            <span id="file-meta-icon">📄</span>
+            <span id="file-meta-path">filename</span>
           </div>
-          <div class="subagent-filters">
-            <button class="filter-btn active" onclick="setAgentFilter('all', this)">All</button>
-            <button class="filter-btn" onclick="setAgentFilter('running', this)">Running</button>
-            <button class="filter-btn" onclick="setAgentFilter('completed', this)">Completed</button>
-            <button class="filter-btn" onclick="setAgentFilter('failed', this)">Failed</button>
+          <div class="file-stats-display">
+            <span id="file-meta-lang" class="badge-lang"></span>
+            <span id="file-meta-lines">0 lines</span>
+            <span id="file-meta-size">0 KB</span>
           </div>
         </div>
 
-        <div class="subagent-list" id="subagent-list">
-          <div class="empty-state" id="empty-agent-state">
-            <div style="font-size: 24px;">🤖</div>
-            <div>No sub-agents active yet.</div>
-            <div style="font-size: 11px;">Agent activity and phase summaries appear here as they arrive.</div>
+        <div class="file-code-wrapper" id="file-code-wrapper" style="display: none;">
+          <div class="line-numbers" id="file-line-numbers"></div>
+          <pre class="code-content" id="file-code-content"></pre>
+        </div>
+
+        <div class="empty-viewer-state" id="empty-viewer-state">
+          <div style="font-size: 32px; margin-bottom: 8px;">📂</div>
+          <div style="font-size: 14px; font-weight: 600; color: var(--text-primary);">No File Selected</div>
+          <div style="font-size: 12px; color: var(--text-muted); max-width: 300px; text-align: center; margin-top: 6px; line-height: 1.5;">
+            Select a file from the workspace file tree on the right to view its content here.
           </div>
+        </div>
+
+        <div class="empty-viewer-state" id="loading-viewer-state" style="display: none;">
+          <span class="spinner" style="width: 20px; height: 20px; border-width: 3px; margin-bottom: 12px;"></span>
+          <div style="font-size: 13px; color: var(--text-secondary);">Loading file content...</div>
         </div>
       </div>
 
+      <!-- Pipeline & Sub-Agent Activity View -->
+      <div class="pipeline-activity-view" id="pipeline-activity-view" style="display: none;">
+        <!-- Pipeline Stage Graph -->
+        <div class="graph-section">
+          <div class="graph-header">
+            <span>Harness Stage Pipeline</span>
+            <span id="current-phase-display" style="font-family: var(--font-mono); color: var(--accent-blue);">Phase: Idle</span>
+          </div>
+
+          <div class="graph-canvas" id="graph-canvas">
+            <div class="stage-node pending" id="node-Inspect" onclick="filterByPhase('Inspect')">
+              <div class="stage-icon">🔍</div>
+              <div class="stage-label">Inspect</div>
+              <div class="stage-sub">Topology</div>
+            </div>
+            <div class="stage-arrow">➔</div>
+
+            <div class="stage-node pending" id="node-Triage" onclick="filterByPhase('Triage')">
+              <div class="stage-icon">⚖️</div>
+              <div class="stage-label">Triage</div>
+              <div class="stage-sub">Fast/Deep</div>
+            </div>
+            <div class="stage-arrow">➔</div>
+
+            <div class="stage-node pending" id="node-Explore" onclick="filterByPhase('Explore')">
+              <div class="stage-icon">🔬</div>
+              <div class="stage-label">Explore</div>
+              <div class="stage-sub">Ladder</div>
+            </div>
+            <div class="stage-arrow">➔</div>
+
+            <div class="stage-node pending" id="node-Integrate" onclick="filterByPhase('Integrate')">
+              <div class="stage-icon">🔗</div>
+              <div class="stage-label">Integrate</div>
+              <div class="stage-sub">Lock SHA</div>
+            </div>
+            <div class="stage-arrow">➔</div>
+
+            <div class="stage-node pending" id="node-Publish" onclick="filterByPhase('Publish')">
+              <div class="stage-icon">🚀</div>
+              <div class="stage-label">Publish</div>
+              <div class="stage-sub">GitHub PR</div>
+            </div>
+            <div class="stage-arrow">➔</div>
+
+            <div class="stage-node pending" id="node-Learn" onclick="filterByPhase('Learn')">
+              <div class="stage-icon">📚</div>
+              <div class="stage-label">Learn</div>
+              <div class="stage-sub">ADR & Skills</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="explore-flow" id="explore-flow" aria-label="Explore phase flow">
+          <div class="explore-flow-title">EXPLORE FLOW · SELECT A STEP TO JUMP TO ITS ACTIVITY</div>
+          <div class="explore-flow-steps" id="explore-flow-steps"></div>
+        </div>
+
+        <!-- Codex Sub-Agent Activity Panel -->
+        <div class="subagent-section">
+          <div class="subagent-header">
+            <div class="subagent-title">
+              <span>Codex Sub-Agent Activity</span>
+              <span id="agent-count-badge" class="badge running">0 Active</span>
+            </div>
+            <div class="subagent-filters">
+              <button class="filter-btn active" onclick="setAgentFilter('all', this)">All</button>
+              <button class="filter-btn" onclick="setAgentFilter('running', this)">Running</button>
+              <button class="filter-btn" onclick="setAgentFilter('completed', this)">Completed</button>
+              <button class="filter-btn" onclick="setAgentFilter('failed', this)">Failed</button>
+            </div>
+          </div>
+
+          <div class="subagent-list" id="subagent-list">
+            <div class="empty-state" id="empty-agent-state">
+              <div style="font-size: 24px;">🤖</div>
+              <div>No sub-agents active yet.</div>
+              <div style="font-size: 11px;">Agent activity and phase summaries appear here as they arrive.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rightmost Pane: Workspace File Tree -->
+    <div class="filetree-pane" id="filetree-pane">
+      <div class="filetree-header">
+        <div class="filetree-title">
+          <span>📁 Workspace</span>
+          <span class="chip-btn" id="filetree-count-badge" style="font-size: 11px; padding: 2px 6px;">0</span>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button class="chip-btn" onclick="collapseAllDirs()" title="Collapse all folders" style="padding: 2px 6px;">Fold</button>
+          <button class="chip-btn" onclick="refreshFileTree()" title="Reload workspace files" style="padding: 2px 6px;">🔄</button>
+        </div>
+      </div>
+
+      <div class="filetree-search-bar">
+        <input type="text" id="filetree-search" class="filetree-search-input" placeholder="Filter files..." oninput="handleFileSearch(this.value)">
+      </div>
+
+      <div class="filetree-content" id="filetree-content">
+        <!-- Tree rendered dynamically -->
+      </div>
     </div>
   </div>
 
@@ -1087,6 +1510,12 @@ export function renderWebUI(): string {
       phaseFilter: null,
       phaseEvents: new Map(),
       workspaceFiles: [],
+      selectedFile: null,
+      fileCache: new Map(), // path -> fileData
+      expandedDirs: new Set(["src", "src/server", "src/server/web"]),
+      isWrapped: false,
+      activeViewerTab: "file",
+      fileSearchQuery: "",
     };
 
     const explorePhases = ["Research", "Diagnose", "DiversityGate", "Falsify", "Implement", "Verify", "Compare", "Review"];
@@ -1109,6 +1538,28 @@ export function renderWebUI(): string {
     const autocompleteListEl = document.getElementById("autocomplete-list");
     const exploreFlowEl = document.getElementById("explore-flow");
     const exploreFlowStepsEl = document.getElementById("explore-flow-steps");
+
+    // Viewer & File Tree DOM Elements
+    const filetreeContentEl = document.getElementById("filetree-content");
+    const filetreeCountBadgeEl = document.getElementById("filetree-count-badge");
+    const filetreeSearchEl = document.getElementById("filetree-search");
+    const tabFileBtnEl = document.getElementById("tab-file-btn");
+    const tabActivityBtnEl = document.getElementById("tab-activity-btn");
+    const fileContentViewEl = document.getElementById("file-content-view");
+    const pipelineActivityViewEl = document.getElementById("pipeline-activity-view");
+    const fileViewerActionsEl = document.getElementById("file-viewer-actions");
+    const fileMetaBarEl = document.getElementById("file-meta-bar");
+    const fileMetaIconEl = document.getElementById("file-meta-icon");
+    const fileMetaPathEl = document.getElementById("file-meta-path");
+    const fileMetaLangEl = document.getElementById("file-meta-lang");
+    const fileMetaLinesEl = document.getElementById("file-meta-lines");
+    const fileMetaSizeEl = document.getElementById("file-meta-size");
+    const fileCodeWrapperEl = document.getElementById("file-code-wrapper");
+    const fileLineNumbersEl = document.getElementById("file-line-numbers");
+    const fileCodeContentEl = document.getElementById("file-code-content");
+    const emptyViewerStateEl = document.getElementById("empty-viewer-state");
+    const loadingViewerStateEl = document.getElementById("loading-viewer-state");
+    const wrapToggleBtnEl = document.getElementById("wrap-toggle-btn");
 
     // Initialize application
     async function init() {
@@ -1799,11 +2250,621 @@ export function renderWebUI(): string {
           const files = await res.json();
           if (Array.isArray(files)) {
             state.workspaceFiles = files;
+            renderFileTree();
+
+            // Auto-preview README.md or package.json on initial load if no file is selected
+            if (!state.selectedFile && files.length > 0) {
+              const defaultFile = files.find((f) => f.toLowerCase() === "readme.md") || files.find((f) => f.toLowerCase() === "package.json");
+              if (defaultFile) {
+                openFile(defaultFile);
+              }
+            }
           }
         }
       } catch (err) {
         console.warn("Could not fetch workspace files:", err);
       }
+    }
+
+    function buildFileTree(files) {
+      const root = { name: "", path: "", isDir: true, children: {} };
+      for (const filePath of files) {
+        const parts = filePath.split("/");
+        let curr = root;
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          const isFile = i === parts.length - 1;
+          const currentPath = parts.slice(0, i + 1).join("/");
+          if (!curr.children[part]) {
+            curr.children[part] = {
+              name: part,
+              path: currentPath,
+              isDir: !isFile,
+              children: isFile ? null : {},
+            };
+          }
+          curr = curr.children[part];
+        }
+      }
+      return root;
+    }
+
+    function getFileIcon(filename) {
+      const parts = filename.split(".");
+      const ext = parts.length > 1 ? parts.pop().toLowerCase() : "";
+      switch (ext) {
+        case "ts":
+        case "tsx":
+          return "📘";
+        case "js":
+        case "jsx":
+        case "mjs":
+          return "🟨";
+        case "json":
+          return "⚙️";
+        case "md":
+          return "📝";
+        case "css":
+        case "scss":
+          return "🎨";
+        case "html":
+          return "🌐";
+        case "sh":
+        case "bash":
+        case "zsh":
+          return "💻";
+        case "py":
+          return "🐍";
+        case "rs":
+          return "🦀";
+        case "go":
+          return "🐹";
+        case "sql":
+          return "🗄️";
+        case "yaml":
+        case "yml":
+        case "toml":
+          return "📋";
+        default:
+          return "📄";
+      }
+    }
+
+    function renderFileTree() {
+      if (!filetreeContentEl) return;
+      filetreeContentEl.replaceChildren();
+
+      const files = state.workspaceFiles || [];
+      if (filetreeCountBadgeEl) {
+        filetreeCountBadgeEl.textContent = files.length;
+      }
+
+      if (!files.length) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "padding: 20px 12px; color: var(--text-muted); font-size: 11.5px; text-align: center;";
+        empty.textContent = "No workspace files found";
+        filetreeContentEl.appendChild(empty);
+        return;
+      }
+
+      const query = (state.fileSearchQuery || "").toLowerCase().trim();
+      const filtered = query
+        ? files.filter((f) => f.toLowerCase().includes(query))
+        : files;
+
+      if (!filtered.length) {
+        const noMatch = document.createElement("div");
+        noMatch.style.cssText = "padding: 20px 12px; color: var(--text-muted); font-size: 11.5px; text-align: center;";
+        noMatch.textContent = "No matching files";
+        filetreeContentEl.appendChild(noMatch);
+        return;
+      }
+
+      // If user typed a search query, auto-expand matching directories
+      if (query) {
+        filtered.forEach((filePath) => {
+          const parts = filePath.split("/");
+          for (let i = 1; i < parts.length; i++) {
+            state.expandedDirs.add(parts.slice(0, i).join("/"));
+          }
+        });
+      }
+
+      const tree = buildFileTree(filtered);
+      renderTreeNodes(tree, filetreeContentEl, 0);
+    }
+
+    function renderTreeNodes(node, container, depth) {
+      const sortedKeys = Object.keys(node.children || {}).sort((a, b) => {
+        const nodeA = node.children[a];
+        const nodeB = node.children[b];
+        if (nodeA.isDir !== nodeB.isDir) {
+          return nodeA.isDir ? -1 : 1;
+        }
+        return a.localeCompare(b);
+      });
+
+      for (const key of sortedKeys) {
+        const child = node.children[key];
+        const row = document.createElement("div");
+        row.className = "tree-row" + (child.isDir ? " is-dir" : "") + (state.selectedFile === child.path ? " selected" : "");
+        row.style.paddingLeft = (depth * 14 + 6) + "px";
+
+        if (child.isDir) {
+          const isExpanded = state.expandedDirs.has(child.path);
+          const chevron = document.createElement("span");
+          chevron.className = "tree-chevron";
+          chevron.textContent = isExpanded ? "▼" : "▶";
+
+          const icon = document.createElement("span");
+          icon.className = "tree-icon";
+          icon.textContent = isExpanded ? "📂" : "📁";
+
+          const name = document.createElement("span");
+          name.className = "tree-name";
+          name.textContent = child.name;
+
+          row.append(chevron, icon, name);
+          row.addEventListener("click", () => {
+            if (state.expandedDirs.has(child.path)) {
+              state.expandedDirs.delete(child.path);
+            } else {
+              state.expandedDirs.add(child.path);
+            }
+            renderFileTree();
+          });
+          container.appendChild(row);
+
+          if (isExpanded) {
+            renderTreeNodes(child, container, depth + 1);
+          }
+        } else {
+          const spacer = document.createElement("span");
+          spacer.className = "tree-chevron";
+
+          const icon = document.createElement("span");
+          icon.className = "tree-icon";
+          icon.textContent = getFileIcon(child.name);
+
+          const name = document.createElement("span");
+          name.className = "tree-name";
+          name.textContent = child.name;
+          name.title = child.path;
+
+          const actions = document.createElement("div");
+          actions.className = "tree-actions";
+
+          const mentionBtn = document.createElement("button");
+          mentionBtn.type = "button";
+          mentionBtn.className = "tree-action-btn";
+          mentionBtn.textContent = "@";
+          mentionBtn.title = "Mention in chat";
+          mentionBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            insertMentionIntoChat(child.path);
+          });
+          actions.appendChild(mentionBtn);
+
+          row.append(spacer, icon, name, actions);
+          row.addEventListener("click", () => {
+            openFile(child.path);
+          });
+          container.appendChild(row);
+        }
+      }
+    }
+
+    async function openFile(filePath) {
+      if (!filePath) return;
+      state.selectedFile = filePath;
+      switchViewerTab("file");
+      renderFileTree();
+
+      emptyViewerStateEl.style.display = "none";
+      fileCodeWrapperEl.style.display = "none";
+      fileMetaBarEl.style.display = "none";
+      fileViewerActionsEl.style.display = "none";
+      loadingViewerStateEl.style.display = "flex";
+
+      try {
+        let fileData = state.fileCache.get(filePath);
+        if (!fileData) {
+          const res = await fetch("/api/file?path=" + encodeURIComponent(filePath));
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: res.statusText }));
+            throw new Error(err.error || "Failed to load file");
+          }
+          fileData = await res.json();
+          state.fileCache.set(filePath, fileData);
+        }
+
+        renderFileContent(fileData);
+      } catch (err) {
+        console.error("Error opening file:", err);
+        loadingViewerStateEl.style.display = "none";
+        emptyViewerStateEl.style.display = "flex";
+        emptyViewerStateEl.innerHTML =
+          '<div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>' +
+          '<div style="font-size: 14px; font-weight: 600; color: var(--accent-red);">' + escapeHtml(err.message || "Failed to load file") + '</div>' +
+          '<div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">' + escapeHtml(filePath) + '</div>';
+      }
+    }
+
+    function highlightCode(code, language) {
+      if (!code) return "";
+      const lang = (language || "").toLowerCase();
+      try {
+        if (lang === "json") {
+          return highlightJson(code);
+        } else if (lang === "markdown" || lang === "md") {
+          return highlightMarkdown(code);
+        } else if (lang === "html" || lang === "xml") {
+          return highlightHtml(code);
+        } else if (lang === "css" || lang === "scss") {
+          return highlightCss(code);
+        } else {
+          return highlightGeneric(code, lang);
+        }
+      } catch (err) {
+        console.warn("Syntax highlight fallback:", err);
+        return escapeHtml(code);
+      }
+    }
+
+    function highlightJson(jsonStr) {
+      const strRegex = '"(?:\\\\\\\\.|[^"\\\\\\\\])*"';
+      const numRegex = '-?\\\\d+(?:\\\\.\\\\d+)?(?:[eE][+-]?\\\\d+)?';
+      const boolRegex = '\\\\b(true|false)\\\\b';
+      const nullRegex = '\\\\bnull\\\\b';
+      const tokenRegex = new RegExp('(' + strRegex + ')(\\\\s*:)?|(' + numRegex + ')|' + boolRegex + '|' + nullRegex, 'g');
+
+      let lastIndex = 0;
+      let html = "";
+      let match;
+
+      while ((match = tokenRegex.exec(jsonStr)) !== null) {
+        if (match.index > lastIndex) {
+          html += escapeHtml(jsonStr.slice(lastIndex, match.index));
+        }
+
+        if (match[1] !== undefined) {
+          if (match[2]) {
+            html += '<span class="hl-property">' + escapeHtml(match[1]) + '</span>' + escapeHtml(match[2]);
+          } else {
+            html += '<span class="hl-string">' + escapeHtml(match[1]) + '</span>';
+          }
+        } else if (match[3] !== undefined) {
+          html += '<span class="hl-number">' + escapeHtml(match[3]) + '</span>';
+        } else if (match[4] !== undefined) {
+          html += '<span class="hl-boolean">' + escapeHtml(match[4]) + '</span>';
+        } else {
+          html += '<span class="hl-keyword">null</span>';
+        }
+
+        lastIndex = tokenRegex.lastIndex;
+      }
+
+      if (lastIndex < jsonStr.length) {
+        html += escapeHtml(jsonStr.slice(lastIndex));
+      }
+      return html;
+    }
+
+    function highlightMarkdown(mdStr) {
+      const tick = String.fromCharCode(96);
+      const lines = mdStr.split("\\n");
+      const out = lines.map((line) => {
+        if (/^#{1,6}\\s/.test(line)) {
+          return '<span class="hl-heading">' + escapeHtml(line) + '</span>';
+        }
+        if (/^>\\s/.test(line)) {
+          return '<span class="hl-comment">' + escapeHtml(line) + '</span>';
+        }
+        if (line.startsWith(tick + tick + tick)) {
+          return '<span class="hl-keyword">' + escapeHtml(line) + '</span>';
+        }
+        if (/^\\s*[-*+]\\s/.test(line) || /^\\s*\\d+\\.\\s/.test(line)) {
+          return escapeHtml(line).replace(/^(\\s*[-*+]|\\s*\\d+\\.)/, '<span class="hl-operator">$1</span>');
+        }
+
+        let escaped = escapeHtml(line);
+        const codeTokenRegex = new RegExp(tick + "([^" + tick + "]+)" + tick, "g");
+        escaped = escaped.replace(codeTokenRegex, '<span class="hl-string">' + tick + '$1' + tick + '</span>');
+        escaped = escaped.replace(/(\\*\\*|__)(.*?)\\1/g, '<span class="hl-keyword">$1$2$1</span>');
+        escaped = escaped.replace(/\\[(.*?)\\]\\((.*?)\\)/g, '<span class="hl-type">[$1]</span>(<span class="hl-string">$2</span>)');
+        return escaped;
+      });
+      return out.join("\\n");
+    }
+
+    function highlightHtml(htmlStr) {
+      const commentRegex = "<!--[\\\\s\\\\S]*?-->";
+      const tagRegex = "</?[-a-zA-Z0-9]+";
+      const attrRegex = '[-a-zA-Z0-9:]+=(?:"[^"]*"|\\x27[^\\x27]*\\x27)';
+      const closeRegex = "/?>";
+      const tokenRegex = new RegExp("(" + commentRegex + ")|(" + tagRegex + ")|(" + attrRegex + ")|(" + closeRegex + ")", "g");
+
+      let lastIndex = 0;
+      let html = "";
+      let match;
+
+      while ((match = tokenRegex.exec(htmlStr)) !== null) {
+        if (match.index > lastIndex) {
+          html += escapeHtml(htmlStr.slice(lastIndex, match.index));
+        }
+
+        const [full, comment, tag, attr, close] = match;
+        if (comment) {
+          html += '<span class="hl-comment">' + escapeHtml(comment) + '</span>';
+        } else if (tag) {
+          html += '<span class="hl-tag">' + escapeHtml(tag) + '</span>';
+        } else if (attr) {
+          const eqIdx = attr.indexOf("=");
+          const name = attr.slice(0, eqIdx);
+          const val = attr.slice(eqIdx + 1);
+          html += '<span class="hl-attr">' + escapeHtml(name) + '</span>=<span class="hl-string">' + escapeHtml(val) + '</span>';
+        } else if (close) {
+          html += escapeHtml(close);
+        } else {
+          html += escapeHtml(full);
+        }
+
+        lastIndex = tokenRegex.lastIndex;
+      }
+
+      if (lastIndex < htmlStr.length) {
+        html += escapeHtml(htmlStr.slice(lastIndex));
+      }
+      return html;
+    }
+
+    function highlightCss(cssStr) {
+      const cssComment = "/\\\\*[\\\\s\\\\S]*?\\\\*/";
+      const cssString = '"[^"]*"|\\x27[^\\x27]*\\x27';
+      const cssSelector = "[^{}:;]+(?=\\\\s*\\\\{)";
+      const cssProp = "[-a-zA-Z]+(?=\\\\s*:)";
+      const cssVal = ":[^;}]+;";
+      const tokenRegex = new RegExp("(" + cssComment + ")|(" + cssString + ")|(" + cssSelector + ")|(" + cssProp + ")|(" + cssVal + ")", "g");
+
+      let lastIndex = 0;
+      let html = "";
+      let match;
+
+      while ((match = tokenRegex.exec(cssStr)) !== null) {
+        if (match.index > lastIndex) {
+          html += escapeHtml(cssStr.slice(lastIndex, match.index));
+        }
+
+        const [full, comment, str, selector, prop, val] = match;
+        if (comment) {
+          html += '<span class="hl-comment">' + escapeHtml(comment) + '</span>';
+        } else if (str) {
+          html += '<span class="hl-string">' + escapeHtml(str) + '</span>';
+        } else if (selector) {
+          html += '<span class="hl-tag">' + escapeHtml(selector) + '</span>';
+        } else if (prop) {
+          html += '<span class="hl-attr">' + escapeHtml(prop) + '</span>';
+        } else if (val) {
+          html += '<span class="hl-property">' + escapeHtml(val) + '</span>';
+        } else {
+          html += escapeHtml(full);
+        }
+
+        lastIndex = tokenRegex.lastIndex;
+      }
+
+      if (lastIndex < cssStr.length) {
+        html += escapeHtml(cssStr.slice(lastIndex));
+      }
+      return html;
+    }
+
+    function highlightGeneric(code, lang) {
+      const tick = String.fromCharCode(96);
+      const isPythonOrShell = ["python", "py", "bash", "sh", "zsh", "yaml", "yml"].includes(lang);
+
+      const commentPattern = isPythonOrShell ? "#[^\\\\n]*" : "(?://[^\\\\n]*|/\\\\*[\\\\s\\\\S]*?\\\\*/)";
+      const templateStr = tick + "(?:\\\\\\\\.|[^" + tick + "\\\\\\\\\\])*" + tick;
+      const doubleStr = "\\"(?:\\\\\\\\.|[^\\\"\\\\\\\\])*\\"";
+      const singleStr = "\\x27(?:\\\\\\\\.|[^\\x27\\\\\\\\])*\\x27";
+      const stringPattern = templateStr + "|" + doubleStr + "|" + singleStr;
+      const numberPattern = "\\\\b(?:0x[0-9a-fA-F]+|\\\\d+(?:\\\\.\\\\d+)?(?:[eE][+-]?\\\\d+)?)\\\\b";
+      const wordPattern = "[a-zA-Z_$][a-zA-Z0-9_$]*";
+      const opPattern = "[-=+*/%&|^!<>?:;,.~]+";
+
+      const tokenRegex = new RegExp(
+        "(" + commentPattern + ")|(" + stringPattern + ")|(" + numberPattern + ")|(" + wordPattern + ")|(" + opPattern + ")",
+        "g"
+      );
+
+      const keywords = new Set([
+        "abstract", "as", "async", "await", "break", "case", "catch", "class", "const",
+        "continue", "debugger", "default", "delete", "do", "else", "enum", "export",
+        "extends", "finally", "for", "from", "function", "get", "if", "implements",
+        "import", "in", "instanceof", "interface", "let", "new", "of", "package",
+        "private", "protected", "public", "return", "set", "static", "super",
+        "switch", "this", "throw", "try", "typeof", "var", "void", "while", "with",
+        "yield", "def", "elif", "except", "is", "not", "pass", "raise", "echo",
+        "fn", "pub", "mut", "impl", "struct", "trait", "type", "select", "where",
+        "lambda", "global", "nonlocal", "assert", "del"
+      ]);
+
+      const constants = new Set([
+        "true", "false", "null", "undefined", "NaN", "Infinity", "None", "True", "False", "nil"
+      ]);
+
+      const types = new Set([
+        "string", "number", "boolean", "any", "unknown", "never", "void", "Promise",
+        "Array", "Object", "Record", "Map", "Set", "Function", "Symbol", "BigInt",
+        "int", "float", "str", "dict", "list", "bool", "i32", "i64", "u32", "u64", "usize"
+      ]);
+
+      let lastIndex = 0;
+      let html = "";
+      let match;
+
+      while ((match = tokenRegex.exec(code)) !== null) {
+        if (match.index > lastIndex) {
+          html += escapeHtml(code.slice(lastIndex, match.index));
+        }
+
+        const [full, comment, str, num, word, op] = match;
+
+        if (comment) {
+          html += '<span class="hl-comment">' + escapeHtml(comment) + '</span>';
+        } else if (str) {
+          html += '<span class="hl-string">' + escapeHtml(str) + '</span>';
+        } else if (num) {
+          html += '<span class="hl-number">' + escapeHtml(num) + '</span>';
+        } else if (word) {
+          if (keywords.has(word)) {
+            html += '<span class="hl-keyword">' + escapeHtml(word) + '</span>';
+          } else if (constants.has(word)) {
+            html += '<span class="hl-boolean">' + escapeHtml(word) + '</span>';
+          } else if (types.has(word)) {
+            html += '<span class="hl-type">' + escapeHtml(word) + '</span>';
+          } else {
+            const nextIdx = match.index + full.length;
+            const lookAhead = code.slice(nextIdx, nextIdx + 8).trimStart();
+            if (lookAhead.startsWith("(")) {
+              html += '<span class="hl-function">' + escapeHtml(word) + '</span>';
+            } else if (/^[A-Z][a-zA-Z0-9]*$/.test(word)) {
+              html += '<span class="hl-type">' + escapeHtml(word) + '</span>';
+            } else {
+              html += escapeHtml(word);
+            }
+          }
+        } else if (op) {
+          html += '<span class="hl-operator">' + escapeHtml(op) + '</span>';
+        } else {
+          html += escapeHtml(full);
+        }
+
+        lastIndex = tokenRegex.lastIndex;
+      }
+
+      if (lastIndex < code.length) {
+        html += escapeHtml(code.slice(lastIndex));
+      }
+
+      return html;
+    }
+
+    function renderFileContent(fileData) {
+      loadingViewerStateEl.style.display = "none";
+      emptyViewerStateEl.style.display = "none";
+      fileMetaBarEl.style.display = "flex";
+      fileCodeWrapperEl.style.display = "flex";
+      fileViewerActionsEl.style.display = "flex";
+
+      const filename = fileData.path.split("/").pop() || fileData.path;
+      fileMetaIconEl.textContent = getFileIcon(filename);
+      fileMetaPathEl.textContent = fileData.path;
+      fileMetaLangEl.textContent = fileData.language || "text";
+
+      const lineCount = typeof fileData.lines === "number" ? fileData.lines : (fileData.content ? fileData.content.split("\\n").length : 0);
+      fileMetaLinesEl.textContent = lineCount + (lineCount === 1 ? " line" : " lines");
+
+      const bytes = fileData.bytes || 0;
+      fileMetaSizeEl.textContent = formatBytes(bytes);
+
+      // Render line numbers
+      let lineNumbersHtml = "";
+      for (let i = 1; i <= lineCount; i++) {
+        lineNumbersHtml += i + "<br>";
+      }
+      fileLineNumbersEl.innerHTML = lineNumbersHtml;
+
+      // Render code with syntax highlighting
+      fileCodeContentEl.innerHTML = highlightCode(fileData.content || "", fileData.language || "");
+      fileCodeWrapperEl.scrollTop = 0;
+      fileCodeWrapperEl.scrollLeft = 0;
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+    }
+
+    function switchViewerTab(tab) {
+      state.activeViewerTab = tab;
+      if (tab === "file") {
+        tabFileBtnEl.classList.add("active");
+        tabActivityBtnEl.classList.remove("active");
+        fileContentViewEl.style.display = "flex";
+        pipelineActivityViewEl.style.display = "none";
+        if (state.selectedFile) {
+          fileViewerActionsEl.style.display = "flex";
+        }
+      } else {
+        tabFileBtnEl.classList.remove("active");
+        tabActivityBtnEl.classList.add("active");
+        fileContentViewEl.style.display = "none";
+        pipelineActivityViewEl.style.display = "flex";
+        fileViewerActionsEl.style.display = "none";
+      }
+    }
+
+    function toggleWrap() {
+      state.isWrapped = !state.isWrapped;
+      if (state.isWrapped) {
+        fileCodeContentEl.classList.add("wrapped");
+        wrapToggleBtnEl.textContent = "Wrap: On";
+        wrapToggleBtnEl.classList.add("active");
+      } else {
+        fileCodeContentEl.classList.remove("wrapped");
+        wrapToggleBtnEl.textContent = "Wrap: Off";
+        wrapToggleBtnEl.classList.remove("active");
+      }
+    }
+
+    function copyFileContent() {
+      if (!state.selectedFile) return;
+      const fileData = state.fileCache.get(state.selectedFile);
+      if (!fileData || !fileData.content) return;
+
+      navigator.clipboard.writeText(fileData.content).then(() => {
+        const copyBtn = document.getElementById("copy-file-btn");
+        if (copyBtn) {
+          const original = copyBtn.textContent;
+          copyBtn.textContent = "✓ Copied!";
+          setTimeout(() => {
+            copyBtn.textContent = original;
+          }, 1800);
+        }
+      }).catch((err) => {
+        console.error("Clipboard copy error:", err);
+      });
+    }
+
+    function mentionActiveFile() {
+      if (!state.selectedFile) return;
+      insertMentionIntoChat(state.selectedFile);
+    }
+
+    function insertMentionIntoChat(filePath) {
+      const mention = "@" + filePath + " ";
+      const val = userInputEl.value;
+      const pos = userInputEl.selectionStart || val.length;
+      userInputEl.value = val.slice(0, pos) + mention + val.slice(pos);
+      userInputEl.focus();
+      userInputEl.setSelectionRange(pos + mention.length, pos + mention.length);
+    }
+
+    function handleFileSearch(query) {
+      state.fileSearchQuery = query;
+      renderFileTree();
+    }
+
+    function collapseAllDirs() {
+      state.expandedDirs.clear();
+      renderFileTree();
+    }
+
+    function refreshFileTree() {
+      state.fileCache.clear();
+      fetchWorkspaceFiles();
     }
 
     function escapeHtml(str) {
