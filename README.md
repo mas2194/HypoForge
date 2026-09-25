@@ -1,4 +1,4 @@
-# Autonomous Agent Harness (`HypoForge`)
+# Autonomous Agent Harness (`RefuteFlow`)
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x%20%2F%207.x-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -9,7 +9,7 @@
 
 ---
 
-`HypoForge` is an autonomous software engineering harness built on TypeScript and the OpenAI / Codex SDK. Rather than treating Large Language Models as simple "diff generators" that apply superficial patches, `HypoForge` treats LLMs as **hypothesis exploration engines** regulated by a deterministic, evidence-driven supervisory architecture.
+`RefuteFlow` is an autonomous software engineering harness built on TypeScript and the OpenAI / Codex SDK. Rather than treating Large Language Models as simple "diff generators" that apply superficial patches, `RefuteFlow` treats LLMs as **hypothesis exploration engines** regulated by a deterministic, evidence-driven supervisory architecture.
 
 It is designed to counter the **"Minimal-Diff Trap"** (where agents apply short-sighted workarounds to minimize changes) through multi-level architectural exploration, counterfactual checks, isolated Git worktrees, metamorphic invariant verification, and blind clean-room peer review.
 
@@ -66,7 +66,7 @@ This heuristic leads to severe engineering failures:
 3. **Self-Grading Bias (Echo Chamber)**: Allowing the same LLM instance that authored the code to declare "implementation successful" without independent adversarial verification.
 4. **Context Window Contamination**: Accumulating megabytes of failed trial traces, which dilutes attention and degrades model reasoning over extended sessions.
 
-`HypoForge` replaces this fragile paradigm with a rigorous scientific method: **Hypothesis Generation $\rightarrow$ Counter-Argument Falsification $\rightarrow$ Parallel Isolated Execution $\rightarrow$ Objective Machine Verification $\rightarrow$ Blind Peer Review**.
+`RefuteFlow` replaces this fragile paradigm with a rigorous scientific method: **Hypothesis Generation $\rightarrow$ Counter-Argument Falsification $\rightarrow$ Parallel Isolated Execution $\rightarrow$ Objective Machine Verification $\rightarrow$ Blind Peer Review**.
 
 ---
 
@@ -210,7 +210,7 @@ The **Diversity Gate** mathematically ensures that surviving candidates are stru
 
 ### 5. Model-Directed Research Routing
 
-Before launching deep architectural diagnosis, `HypoForge` dynamically determines whether external literature or ecosystem research is required (`src/phases/research-router.ts`):
+Before launching deep architectural diagnosis, `RefuteFlow` dynamically determines whether external literature or ecosystem research is required (`src/phases/research-router.ts`):
 - **Model Judgment (`judgeResearchNeed`)**: Prompts the LLM in the task's native language to evaluate whether the goal demands prior-art comparison, protocol RFCs, or domain knowledge not self-contained in the repo.
 - **Pattern Signals**: Automatically flags triggers such as latency/throughput targets, lock-free/concurrency primitives, algorithmic data structure overhauls, core subsystem redesigns, or major API migrations.
 - When routed to `Research`, an autonomous worker queries live documentation and crystallizes structured architectural findings into `CandidateResearchSchema` before diagnosis begins.
@@ -229,7 +229,7 @@ Cheap, high-risk tests run first to prune invalid hypotheses with minimal token 
 
 ### 7. Parallel Exploration via Isolated Git Worktrees
 
-Unlike naive agents that pollute the workspace with abandoned intermediate changes, `HypoForge` isolates every candidate into dedicated Git worktrees (`worktrees/run-<id>-<cand>/`):
+Unlike naive agents that pollute the workspace with abandoned intermediate changes, `RefuteFlow` isolates every candidate into dedicated Git worktrees (`worktrees/run-<id>-<cand>/`):
 - Clean git state with separate working trees.
 - Parallel worker execution in isolated filesystem roots.
 - Automated branch cleanup upon candidate rejection.
@@ -273,7 +273,7 @@ Approved candidates are submitted to an independent, blind **Clean-Room Reviewer
 
 ### 12. Structured Evidence Store & Lossless Context Compactor
 
-Extended self-healing loops suffer from context pollution. `HypoForge` separates volatile scratchpads from permanent facts:
+Extended self-healing loops suffer from context pollution. `RefuteFlow` separates volatile scratchpads from permanent facts:
 - **4-Layer Structured Evidence Store**: Immutable records divided into `Observation`, `Assertion`, `Inference`, and `Decision`.
 - **Context Compactor**: Upon backtrack or phase transitions, transient chat logs and massive stack traces are purged. Only negative constraints, violated invariants, and distilled lessons are preserved into prompt projections.
 
@@ -422,7 +422,7 @@ node dist/main.js
 
 #### Interactive Slash Commands
 
-Similar to Codex CLI, `HypoForge` supports dynamic interactive slash commands in the interactive prompt:
+Similar to Codex CLI, `RefuteFlow` supports dynamic interactive slash commands in the interactive prompt:
 
 - **`/model`** or **`/model <name|number>`**:
   - Without arguments: Lists all available Codex models (auto-loaded from `~/.codex/models_cache.json`), supported reasoning effort levels, and interactive selection.
@@ -486,7 +486,7 @@ Open `http://localhost:3000` in your browser for a modern **3-Column Dashboard**
   - `GET /api/file?path=<path>`: Safe workspace file retrieval with strict path traversal prevention.
   - `POST /api/chat`, `GET /api/events` (Server-Sent Events), `GET /api/status`, `GET /api/models`, `GET /api/files`.
 
-During execution, `HypoForge` will:
+During execution, `RefuteFlow` will:
 1. Inspect the repository AST, topology, and invariant contracts.
 2. Route external research if needed based on model judgment and pattern signals.
 3. Formulate diagnostic hypotheses across multiple intervention levels.
@@ -518,7 +518,7 @@ Save the private key `.pem` file to `./secrets/github-app.private-key.pem` and p
 
 ### Multi-Dimensional Budget Governor
 
-To prevent run-away exploration costs, `HypoForge` enforces a multi-dimensional budget governor:
+To prevent run-away exploration costs, `RefuteFlow` enforces a multi-dimensional budget governor:
 
 ```typescript
 const harness = new HarnessStateMachine({
@@ -537,7 +537,7 @@ const harness = new HarnessStateMachine({
 ## Repository Structure
 
 ```text
-HypoForge/
+RefuteFlow/
 ├── AGENTS.md                  # Engineering principles & negative constraints
 ├── .env.example               # Environment variables template
 ├── docs/
