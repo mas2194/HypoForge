@@ -1,4 +1,4 @@
-# 自律型エージェント・ハーネス (`HypoForge`)
+# 自律型エージェント・ハーネス (`RefuteFlow`)
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x%20%2F%207.x-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -9,7 +9,7 @@
 
 ---
 
-`HypoForge` は、TypeScript と OpenAI / Codex SDK を基盤に構築された、  **証拠駆動型の自律ソフトウェア工学エージェント・ハーネス（Autonomous Software Engineering Harness）** です。
+`RefuteFlow` は、TypeScript と OpenAI / Codex SDK を基盤に構築された、  **証拠駆動型の自律ソフトウェア工学エージェント・ハーネス（Autonomous Software Engineering Harness）** です。
 
 LLMを単なる「diffを生成するパッチ作成器」として扱うのではなく、決定論的な統制アーキテクチャの制御下で稼働する **「仮説探索・反証アルゴリズムの実行エンジン」** として位置付けています。
 
@@ -68,7 +68,7 @@ LLMを単なる「diffを生成するパッチ作成器」として扱うので�
 3. **自己採点バイアス（Echo Chamber）**: コードを書いた張本人であるLLM自身に「実装完了」を判定させ、客観的な品質基準が失われる。
 4. **コンテキスト汚染**: 失敗した試行錯誤の巨大なスタックトレースが対話履歴に蓄積し、モデルの推論能力と注意力が急速に劣化する。
 
-`HypoForge` は、この脆弱なアプローチを科学的方法論に基づいた探索サイクルに置き換えます：
+`RefuteFlow` は、この脆弱なアプローチを科学的方法論に基づいた探索サイクルに置き換えます：
  **仮説生成 $\rightarrow$ 敵対的反証 $\rightarrow$ 並列独立実装 $\rightarrow$ 機械的客観検証 $\rightarrow$ ブラインド第三者査読** 。
 
 ---
@@ -489,7 +489,7 @@ npx tsx src/main.ts -s -p 8080 -m o3-mini -e high
   - `GET /api/file?path=<path>`: ディレクトリトラバーサル攻撃を防ぐセキュリティチェック付きファイル内容取得 API。
   - `POST /api/chat`, `GET /api/events` (Server-Sent Events), `GET /api/status`, `GET /api/models`, `GET /api/files`。
 
-実行中、`HypoForge` は以下のフローを自律的に進行します：
+実行中、`RefuteFlow` は以下のフローを自律的に進行します：
 1. 対象コードベースの AST、依存関係トポロジー、不変条件を自動解析。
 2. モデルの推論とシグナルパターンに基づき、必要に応じて外部仕様・文献リサーチを実施。
 3. 介入ラダー（L0〜L6）に沿った多層的な診断仮説を生成。
@@ -540,7 +540,7 @@ const harness = new HarnessStateMachine({
 ## ディレクトリ構成
 
 ```text
-HypoForge/
+RefuteFlow/
 ├── AGENTS.md                  # システムの最優先設計原則・制約事項
 ├── .env.example               # 環境変数テンプレート
 ├── docs/
