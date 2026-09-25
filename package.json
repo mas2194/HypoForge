@@ -10,7 +10,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:binary": "bash scripts/build-macos-binary.sh",
+    "build:binary": "bash scripts/build-binary.sh",
+    "build:binary:linux": "bash scripts/build-linux-binary.sh",
+    "build:binary:macos": "bash scripts/build-macos-binary.sh",
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/bin.ts",
     "server": "tsx src/bin.ts --server",

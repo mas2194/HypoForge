@@ -323,12 +323,12 @@ Execution trajectories are automatically recorded and exported in Direct Prefere
 - **Package Manager**: `pnpm` (recommended, `v10.5.2`+) or `npm`
 - **OpenAI Authentication**: Either ChatGPT OAuth via `codex login`, or `OPENAI_API_KEY`
 
-### Standalone macOS Executables (Zero-Dependency)
+### Standalone Executables (Zero-Dependency)
 
-Download pre-built standalone macOS executables from GitHub Releases (Universal binary supporting both Apple Silicon and Intel Macs):
+Download pre-built standalone executables from GitHub Releases:
 
+#### macOS (Apple Silicon & Intel Universal)
 ```bash
-# Download and extract the latest Universal macOS binary
 curl -fsSL https://github.com/mas2194/RefuteFlow/releases/latest/download/rf-darwin-universal.tar.gz | tar -xz
 chmod +x rf
 sudo mv rf /usr/local/bin/
@@ -337,10 +337,26 @@ sudo mv rf /usr/local/bin/
 rf /help
 ```
 
-To build macOS executables from source:
+#### Linux (x86_64 / arm64)
 ```bash
-npm run build:binary
-# Generates rf-darwin-arm64, rf-darwin-x64, and rf-darwin-universal in release/
+# For x86_64 (Intel/AMD):
+curl -fsSL https://github.com/mas2194/RefuteFlow/releases/latest/download/rf-linux-x64.tar.gz | tar -xz
+
+# For arm64 (aarch64):
+curl -fsSL https://github.com/mas2194/RefuteFlow/releases/latest/download/rf-linux-arm64.tar.gz | tar -xz
+
+chmod +x rf
+sudo mv rf /usr/local/bin/
+
+# Run
+rf /help
+```
+
+To build standalone executables from source:
+```bash
+npm run build:binary        # Auto-detects OS (Linux or macOS)
+npm run build:binary:linux  # Build Linux binaries (x64 and arm64 in release/)
+npm run build:binary:macos  # Build macOS binaries (arm64, x64, universal in release/)
 ```
 
 ### Installation from Source

@@ -326,10 +326,11 @@ MERGED (マージ完了: 1.0)
 - **Git**: パスが通っており利用可能な状態
 - **OpenAI 認証**: `codex login` による ChatGPT アカウントの OAuth ログイン、または `OPENAI_API_KEY`
 
-### macOS 向けスタンドアロン実行ファイル（Node.js インストール不要）
+### スタンドアロン実行ファイル（Node.js インストール不要）
 
-GitHub Releases から macOS 用スタンドアロン実行ファイルをダウンロードして直接実行できます（Apple Silicon / Intel Mac 両対応）：
+GitHub Releases から各プラットフォーム向けのスタンドアロン実行ファイルをダウンロードして直接実行できます：
 
+#### macOS（Apple Silicon / Intel Mac Universal）
 ```bash
 # 最新の Universal バイナリ（arm64 / x86_64）をダウンロードして展開
 curl -fsSL https://github.com/mas2194/RefuteFlow/releases/latest/download/rf-darwin-universal.tar.gz | tar -xz
@@ -340,10 +341,26 @@ sudo mv rf /usr/local/bin/
 rf /help
 ```
 
-ソースコードから macOS 実行ファイルをビルドする場合：
+#### Linux（x86_64 / arm64）
 ```bash
-npm run build:binary
-# release/ ディレクトリに rf-darwin-arm64, rf-darwin-x64, rf-darwin-universal 実行ファイルおよび tar.gz が生成されます
+# x86_64 (Intel/AMD) の場合:
+curl -fsSL https://github.com/mas2194/RefuteFlow/releases/latest/download/rf-linux-x64.tar.gz | tar -xz
+
+# arm64 (aarch64) の場合:
+curl -fsSL https://github.com/mas2194/RefuteFlow/releases/latest/download/rf-linux-arm64.tar.gz | tar -xz
+
+chmod +x rf
+sudo mv rf /usr/local/bin/
+
+# 実行
+rf /help
+```
+
+ソースコードからスタンドアロン実行ファイルをビルドする場合：
+```bash
+npm run build:binary        # OSを自動判定（Linux または macOS）
+npm run build:binary:linux  # Linux 用バイナリをビルド（release/ に x64, arm64 を生成）
+npm run build:binary:macos  # macOS 用バイナリをビルド（release/ に arm64, x64, universal を生成）
 ```
 
 ### ソースコードからのインストール
