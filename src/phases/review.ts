@@ -1,22 +1,22 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { ReviewResultSchema, type ReviewResult } from "../schemas/result.js";
 import type { CandidateImplementation } from "../schemas/candidate.js";
 import type { VerificationResult } from "../schemas/result.js";
 import type { CodexClientManager } from "../codex/client.js";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export interface ReviewOptions {
   goal: string;
   implementation: CandidateImplementation;
   verification: VerificationResult;
+  testCommand?: string;
   baseBranch?: string;
-  repoPath?: string;
 }
 
 import { EMBEDDED_PROMPTS } from "../prompts/embedded.js";
@@ -33,17 +33,33 @@ export async function runCleanRoomReviewPhase(
     // Keep embedded prompt fallback
   }
 
-  // Obtain clean diff without implementation context
-  let diffContent = "";
-  try {
-    const base = options.baseBranch ?? "main";
-    const { stdout } = await execAsync(`git diff ${base}...HEAD`, {
-      cwd: options.implementation.worktreePath,
-    });
-    diffContent = stdout.slice(0, 8000); // Keep reasonable size
-  } catch {
-    diffContent = "(No diff or unable to extract diff)";
-  }
+  // Give the reviewer direct read-only access to the candidate worktree. Pass a
+  // file manifest, not patch contents, so large changes are never silently cut.
+  const worktreePath = options.implementation.worktreePath;
+  const base = options.baseBranch ?? "main";
+  const [committedChanges, workingChanges, untrackedFiles, workspaceStatus] = await Promise.all([
+    execFileAsync("git", ["diff", "--name-only", `${base}...HEAD`], { cwd: worktreePath })
+      .then(({ stdout }) => stdout)
+      .catch(() => ""),
+    execFileAsync("git", ["diff", "--name-only", "HEAD"], { cwd: worktreePath })
+      .then(({ stdout }) => stdout)
+      .catch(() => ""),
+    execFileAsync("git", ["ls-files", "--others", "--exclude-standard"], { cwd: worktreePath })
+      .then(({ stdout }) => stdout)
+      .catch(() => ""),
+    execFileAsync("git", ["status", "--short", "--untracked-files=all"], { cwd: worktreePath })
+      .then(({ stdout }) => stdout.trim() || "Clean")
+      .catch(() => "Unable to read worktree status"),
+  ]);
+  const changedFiles = [...new Set(
+    [committedChanges, workingChanges, untrackedFiles]
+      .flatMap((output) => output.split("\n"))
+      .map((file) => file.trim())
+      .filter(Boolean)
+  )].sort();
+  const changedFilesSummary = changedFiles.length > 0
+    ? changedFiles.map((file) => `- ${file}`).join("\n")
+    : "(No changed files found relative to the base branch or worktree status.)";
 
   const benchmarkSummary = options.verification.benchmark
     ? `- Benchmark: before=${options.verification.benchmark.before}, after=${options.verification.benchmark.after} (${options.verification.benchmark.unit})`
@@ -65,19 +81,33 @@ Candidate:
 Anonymous Candidate X (All author and ranking metadata stripped for blind audit)
 
 Objective Test & Verification Evidence:
-- Test Results: ${options.verification.tests.passed} passed, ${options.verification.tests.failed} failed
-- Execution Status: ${options.verification.tests.failed === 0 ? "PASSED (Zero test errors)" : "FAILED (Test failures detected)"}
+- Test Command: ${options.testCommand ?? "No mandatory test command configured"}
+- Test Results: ${options.verification.tests.passed} command(s) passed, ${options.verification.tests.failed} failed (exit code ${options.verification.tests.exitCode})
+- Execution Status: ${!options.testCommand ? "NOT RUN (no mandatory test command configured)" : options.verification.tests.failed === 0 ? "PASSED" : "FAILED (Test failures detected)"}
+- Acceptance Checks: ${options.verification.acceptance.tested ? (options.verification.acceptance.passed ? "PASSED" : "FAILED") : "NOT RUN (no acceptance criteria configured)"}
+- Verified Criteria: ${options.verification.acceptance.verifiedCriteria.join("; ") || "None recorded"}
+- Missing Criteria: ${options.verification.acceptance.missingCriteria.join("; ") || "None recorded"}
 ${regressionsSummary}
 ${benchmarkSummary}
 ${complexitySummary}
-
-Diff:
-\`\`\`diff
-${diffContent}
+- Hard Gates: ${options.verification.hardGates.passedAll ? "PASSED" : "FAILED"}${options.verification.hardGates.failureReasons.length ? ` (${options.verification.hardGates.failureReasons.join("; ")})` : ""}
+- Test Output (last 6,000 characters):
+\`\`\`text
+${options.verification.tests.output.slice(-6000) || "(No test output recorded)"}
 \`\`\`
 
-Review this diff as an independent auditor.
-You CANNOT modify code; your role is strictly read-only audit.
+Candidate Workspace: Current read-only worktree
+Base Branch: ${base}
+Worktree Status:
+\`\`\`text
+${workspaceStatus}
+\`\`\`
+
+Changed Files to Inspect:
+${changedFilesSummary}
+
+Inspect the candidate worktree directly. Read the changed files and any relevant surrounding files needed to determine whether the goal was met. Do not rely on a pasted diff; none is supplied. You may use read-only commands to inspect files and repository metadata, but do not run tests, modify files, or make external changes.
+Review the implementation and available verification evidence as an independent auditor.
 Respond strictly with a valid JSON object matching this schema:
 {
   "approved": boolean,
@@ -98,7 +128,7 @@ Failure classes for rejections:
     try {
       // Clean-room: strictly read-only, offline, isolated thread with no implementation history
       const thread = codexManager.startWorkerThread({
-        workingDirectory: options.repoPath ?? process.cwd(),
+        workingDirectory: worktreePath,
         sandboxMode: "read-only",
         networkAccessEnabled: false,
         webSearchMode: "disabled",

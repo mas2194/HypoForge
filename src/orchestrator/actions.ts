@@ -907,7 +907,7 @@ export async function cleanRoomReviewAction(ctx: HarnessContext): Promise<NodeSt
         goal: ctx.goal,
         implementation: current.implementation,
         verification: current.verification,
-        repoPath: ctx.worktreeManager.repoRoot,
+        testCommand: effectiveTestCommand(ctx),
       },
       ctx.codexManager
     );

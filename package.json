@@ -1,6 +1,6 @@
 {
   "name": "refuteflow",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "RefuteFlow: Autonomous Agent Harness for Evidence-based Architecture Exploration",
   "type": "module",
   "main": "dist/main.js",

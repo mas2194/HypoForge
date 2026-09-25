@@ -268,7 +268,7 @@ The harness never trusts the LLM's own declaration that code works. Verification
 Approved candidates are submitted to an independent, blind **Clean-Room Reviewer**:
 - Spawned in an isolated thread with **no prior implementation context** (preventing sunk-cost rationalization).
 - Sandboxed in `read-only` mode with disabled network access.
-- Given only the PR diff, the original goal, and the verification metrics.
+- Given read-only access to the candidate worktree, the original goal, a changed-file manifest, and verification evidence. This lets the reviewer inspect the complete result without truncating large diffs.
 - Evaluates the change from the perspective of an adversarial principal engineer.
 
 ### 12. Structured Evidence Store & Lossless Context Compactor
