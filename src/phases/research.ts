@@ -12,16 +12,18 @@ export interface ResearchOptions {
   repoPath?: string;
 }
 
+import { EMBEDDED_PROMPTS } from "../prompts/embedded.js";
+
 export async function runResearchPhase(
   options: ResearchOptions,
   codexManager?: CodexClientManager
 ): Promise<ResearchBrief> {
   const promptPath = path.resolve(__dirname, "../../prompts/researcher.md");
-  let systemPrompt = "";
+  let systemPrompt = EMBEDDED_PROMPTS.researcher;
   try {
     systemPrompt = await fs.readFile(promptPath, "utf-8");
   } catch {
-    systemPrompt = "You are an evidence-driven research analyst. Prefer primary sources, verify current claims, distinguish evidence from inference, avoid invented citations or measurements, and return only the requested JSON.";
+    // Keep embedded prompt fallback
   }
 
   const userPrompt = `

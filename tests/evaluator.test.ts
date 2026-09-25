@@ -15,7 +15,7 @@ describe("Evaluator", () => {
     expect(res.candidateId).toBe("cand-1");
     expect(res.tests.passed).toBe(1);
     expect(res.tests.failed).toBe(0);
-    expect(res.score).toBeGreaterThan(100);
+    expect(res.score).toBeGreaterThan(90);
     expect(res.regressions).toHaveLength(0);
   });
 

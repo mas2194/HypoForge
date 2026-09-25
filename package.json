@@ -4,8 +4,12 @@
   "description": "Autonomous Agent Harness for Evidence-based Architecture Exploration",
   "type": "module",
   "main": "dist/main.js",
+  "bin": {
+    "my_harness": "dist/bin.js"
+  },
   "scripts": {
     "build": "tsc",
+    "build:binary": "bash scripts/build-macos-binary.sh",
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts",
     "server": "tsx src/main.ts --server",
@@ -31,8 +35,10 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
-    "typescript": "^7.0.2",
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6",
     "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.1"
   },
   "engines": {

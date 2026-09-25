@@ -326,12 +326,32 @@ MERGED (マージ完了: 1.0)
 - **Git**: パスが通っており利用可能な状態
 - **OpenAI 認証**: `codex login` による ChatGPT アカウントの OAuth ログイン、または `OPENAI_API_KEY`
 
-### インストール
+### macOS 向けスタンドアロン実行ファイル（Node.js インストール不要）
+
+GitHub Releases から macOS 用スタンドアロン実行ファイルをダウンロードして直接実行できます（Apple Silicon / Intel Mac 両対応）：
+
+```bash
+# 最新の Universal バイナリ（arm64 / x86_64）をダウンロードして展開
+curl -fsSL https://github.com/mas2194/my_harness/releases/latest/download/my_harness-darwin-universal.tar.gz | tar -xz
+chmod +x my_harness
+sudo mv my_harness /usr/local/bin/
+
+# 実行
+my_harness /help
+```
+
+ソースコードから macOS 実行ファイルをビルドする場合：
+```bash
+npm run build:binary
+# release/ ディレクトリに arm64, x64, universal 実行ファイルおよび tar.gz が生成されます
+```
+
+### ソースコードからのインストール
 
 ```bash
 # リポジトリのクローン
-git clone https://github.com/mas2194/HypoForge.git
-cd HypoForge
+git clone https://github.com/mas2194/my_harness.git
+cd my_harness
 
 # 依存パッケージのインストール
 pnpm install

@@ -90,17 +90,19 @@ Inspect the implementation and the failure output, fix the underlying cause in t
   }));
 }
 
+import { EMBEDDED_PROMPTS } from "../prompts/embedded.js";
+
 export async function runImplementPhase(
   options: ImplementOptions
 ): Promise<CandidateImplementation[]> {
   const { candidates, worktreeManager, codexManager, runId = `run-${Date.now()}` } = options;
 
   const promptPath = path.resolve(__dirname, "../../prompts/implementer.md");
-  let systemPrompt = "";
+  let systemPrompt = EMBEDDED_PROMPTS.implementer;
   try {
     systemPrompt = await fs.readFile(promptPath, "utf-8");
   } catch {
-    systemPrompt = "You are the coding agent for one candidate. Work only in the assigned worktree, follow repository instructions, implement the supported hypothesis, run relevant checks, and commit the completed branch for harness evaluation.";
+    // Keep embedded prompt fallback
   }
 
   // 1. Prepare worktrees for each candidate

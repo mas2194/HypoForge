@@ -10,7 +10,7 @@ import {
   compareAction,
   cleanRoomReviewAction,
 } from "./actions.js";
-import { BacktrackTarget } from "./backtrack-router.js";
+import { BacktrackTarget, routeBacktrack } from "./backtrack-router.js";
 
 export type DeepPhase =
   | "RESEARCH"
@@ -249,8 +249,44 @@ export async function deepControllerAction(ctx: HarnessContext): Promise<NodeSta
 
         // All candidates rejected by Clean-Room Review
         console.warn("[DeepController:FSM] Clean-room review rejected all queued candidates.");
-        console.error("[DeepController:FSM] Clean-room review failed. Returning prior review results to the orchestrator for a full restart.");
-        return "FAILURE";
+        if (ctx.iteration >= maxIterations) {
+          console.error("[DeepController:FSM] Clean-room review failed and max iterations reached. Returning to orchestrator.");
+          return "FAILURE";
+        }
+
+        const allRejectionReasons = [
+          ...ctx.rejectionFeedbacks,
+          ...(ctx.review?.blockingIssues ?? []),
+        ];
+        const recentEvidenceIds = ctx.evidenceStore?.getAllObservations().slice(-5).map((o) => o.id) ?? [];
+        const decision = routeBacktrack(allRejectionReasons, ctx.review?.failureClass, {
+          evidenceIds: recentEvidenceIds,
+          diagnostics: {
+            iteration: ctx.iteration,
+            failureClass: ctx.review?.failureClass,
+            blockingIssuesCount: ctx.review?.blockingIssues?.length ?? 0,
+          },
+        });
+        ctx.backtrackDecision = decision;
+        ctx.budgetTracker.recordBacktrack(decision.target);
+        ctx.evidenceStore?.addDecision({
+          source: "backtrack_router:review",
+          content: `Diagnosed ${decision.failureClass} (${decision.failureMode}) -> Routed to [Phase: ${decision.target}] (Confidence: ${(decision.confidence * 100).toFixed(0)}%)`,
+          iteration: ctx.iteration,
+          data: { decision },
+        });
+
+        console.log(
+          `[DeepController:Backtrack] Router mapped failure '${decision.failureMode}' directly to Phase: [${decision.target}] (Confidence: ${(decision.confidence * 100).toFixed(0)}%)`
+        );
+        console.log(`[DeepController:Backtrack] Recommendation: ${decision.recommendedAction}`);
+
+        // Direct state transition to the targeted phase!
+        nextPhase = mapTargetToDeepPhase(decision.target);
+        ctx.iteration++;
+        await ctx.currentAttempt.rollbackTransientState();
+        ctx.compactor.compactForBacktrack(ctx, decision.target);
+        break;
       }
     }
   }

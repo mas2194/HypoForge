@@ -394,7 +394,7 @@ export function parseCliArgs(args: string[]): {
   return { model, effort, goal: goal || undefined, server, port };
 }
 
-async function main() {
+export async function main() {
   console.log("=== Autonomous Agent Harness Starting ===");
   console.log("Mode: Evidence-based Architecture Exploration (MVP)");
 
@@ -548,7 +548,9 @@ async function main() {
 const isDirectRun =
   import.meta.url === `file://${process.argv[1]}` ||
   process.argv[1]?.endsWith("src/main.ts") ||
-  process.argv[1]?.endsWith("dist/main.js");
+  process.argv[1]?.endsWith("dist/main.js") ||
+  process.argv[1]?.endsWith("src/bin.ts") ||
+  process.argv[1]?.endsWith("dist/bin.js");
 
 if (isDirectRun) {
   main().catch((err) => {

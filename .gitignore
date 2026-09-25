@@ -14,4 +14,8 @@ Thumbs.db
 # Ephemeral agent runtime artifacts and databases
 .agent/
 
+# Release build artifacts and download caches
+release/
+.cache/
+
 

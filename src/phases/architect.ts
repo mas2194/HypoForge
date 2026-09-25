@@ -14,16 +14,18 @@ export interface ArchitectOptions {
   research?: ResearchBrief;
 }
 
+import { EMBEDDED_PROMPTS } from "../prompts/embedded.js";
+
 export async function runArchitectPhase(
   options: ArchitectOptions,
   codexManager?: CodexClientManager
 ): Promise<Diagnosis> {
   const promptPath = path.resolve(__dirname, "../../prompts/architect.md");
-  let systemPrompt = "";
+  let systemPrompt = EMBEDDED_PROMPTS.architect;
   try {
     systemPrompt = await fs.readFile(promptPath, "utf-8");
   } catch {
-    systemPrompt = "You are an evidence-driven architecture analyst. Ground the diagnosis and testable candidates in supplied facts, compare justified intervention levels, prefer the simplest change that resolves the root cause, and return only the requested JSON.";
+    // Keep embedded prompt fallback
   }
 
   const researchSection = options.research

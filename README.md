@@ -323,12 +323,32 @@ Execution trajectories are automatically recorded and exported in Direct Prefere
 - **Package Manager**: `pnpm` (recommended, `v10.5.2`+) or `npm`
 - **OpenAI Authentication**: Either ChatGPT OAuth via `codex login`, or `OPENAI_API_KEY`
 
-### Installation
+### Standalone macOS Executables (Zero-Dependency)
+
+Download pre-built standalone macOS executables from GitHub Releases (Universal binary supporting both Apple Silicon and Intel Macs):
+
+```bash
+# Download and extract the latest Universal macOS binary
+curl -fsSL https://github.com/mas2194/my_harness/releases/latest/download/my_harness-darwin-universal.tar.gz | tar -xz
+chmod +x my_harness
+sudo mv my_harness /usr/local/bin/
+
+# Run
+my_harness /help
+```
+
+To build macOS executables from source:
+```bash
+npm run build:binary
+# Generates arm64, x64, and universal executables in release/
+```
+
+### Installation from Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/mas2194/HypoForge.git
-cd HypoForge
+git clone https://github.com/mas2194/my_harness.git
+cd my_harness
 
 # Install dependencies
 pnpm install

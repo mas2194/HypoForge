@@ -23,16 +23,18 @@ export interface FalsifyOptions {
   priorResults?: string[];
 }
 
+import { EMBEDDED_PROMPTS } from "../prompts/embedded.js";
+
 export async function runFalsifyPhase(
   options: FalsifyOptions,
   codexManager?: CodexClientManager
 ): Promise<{ candidates: CandidateHypothesis[]; reviews: FalsifiedCandidate[] }> {
   const promptPath = path.resolve(__dirname, "../../prompts/falsifier.md");
-  let systemPrompt = "";
+  let systemPrompt = EMBEDDED_PROMPTS.falsifier;
   try {
     systemPrompt = await fs.readFile(promptPath, "utf-8");
   } catch {
-    systemPrompt = "You are an independent falsifier. Find evidence-based counterexamples and risks for every candidate, propose the cheapest useful disproof test, distinguish facts from possibilities, and return only the requested JSON.";
+    // Keep embedded prompt fallback
   }
 
   const prompt = `

@@ -19,16 +19,18 @@ export interface ReviewOptions {
   repoPath?: string;
 }
 
+import { EMBEDDED_PROMPTS } from "../prompts/embedded.js";
+
 export async function runCleanRoomReviewPhase(
   options: ReviewOptions,
   codexManager?: CodexClientManager
 ): Promise<ReviewResult> {
   const promptPath = path.resolve(__dirname, "../../prompts/reviewer.md");
-  let systemPrompt = "";
+  let systemPrompt = EMBEDDED_PROMPTS.reviewer;
   try {
     systemPrompt = await fs.readFile(promptPath, "utf-8");
   } catch {
-    systemPrompt = "You are an independent read-only reviewer. Assess only the original goal, supplied diff, and verification evidence; report actionable blockers and return only the requested JSON.";
+    // Keep embedded prompt fallback
   }
 
   // Obtain clean diff without implementation context
