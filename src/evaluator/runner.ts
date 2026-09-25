@@ -451,7 +451,6 @@ export class Evaluator {
     let score = 0;
     if (testsPassed) {
       score += 100;
-      score += interventionLevel * 15;
       score -= Math.min(20, duration / 1000);
       if (perfImprovement > 0) score += Math.min(50, perfImprovement);
     } else {

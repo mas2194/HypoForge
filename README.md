@@ -11,7 +11,7 @@
 
 `HypoForge` is an autonomous software engineering harness built on TypeScript and the OpenAI / Codex SDK. Rather than treating Large Language Models as simple "diff generators" that apply superficial patches, `HypoForge` treats LLMs as **hypothesis exploration engines** regulated by a deterministic, evidence-driven supervisory architecture.
 
-It systematically eliminates the **"Minimal-Diff Trap"** (where agents apply short-sighted workarounds to minimize changes) through multi-level architectural exploration, counterfactual checks, isolated Git worktrees, metamorphic invariant verification, and blind clean-room peer review.
+It is designed to counter the **"Minimal-Diff Trap"** (where agents apply short-sighted workarounds to minimize changes) through multi-level architectural exploration, counterfactual checks, isolated Git worktrees, metamorphic invariant verification, and blind clean-room peer review.
 
 ---
 
@@ -21,7 +21,7 @@ It systematically eliminates the **"Minimal-Diff Trap"** (where agents apply sho
 - [Core Engineering Principles](#core-engineering-principles)
 - [System Architecture](#system-architecture)
 - [Key Mechanisms](#key-mechanisms)
-  - [1. Objective Function Without Minimal-Diff Bias](#1-objective-function-without-minimal-diff-bias)
+  - [1. Evidence-Based Candidate Ranking](#1-evidence-based-candidate-ranking)
   - [2. The Intervention Ladder (L0–L6)](#2-the-intervention-ladder-l0l6)
   - [3. Counterfactual Architecture Check](#3-counterfactual-architecture-check)
   - [4. Divergent Generation & Diversity Gate](#4-divergent-generation--diversity-gate)
@@ -161,24 +161,11 @@ From [AGENTS.md](AGENTS.md):
 
 ## Key Mechanisms
 
-### 1. Objective Function Without Minimal-Diff Bias
+### 1. Evidence-Based Candidate Ranking
 
-The harness decouples diff size from candidate scoring. Candidates are ranked using an evidence-based objective function:
+Candidates first pass baseline-relative hard gates. Qualified candidates are then ranked by measured performance improvement, evidence strength, and verification score, in that order. Candidate ID breaks exact ties deterministically. Architectural intervention level and diff size are recorded as context, not used to rank candidates.
 
-$
-S = w_c C + w_p P + w_m M + w_a A + w_t T - w_r R - w_g G
-$
-
-Where:
-- $C$: Correctness (test passage & invariant proofs)
-- $P$: Performance delta (benchmark throughput/latency)
-- $M$: Maintainability & modular simplicity
-- $A$: Architectural coherence
-- $T$: Empirical test evidence density
-- $R$: Regression risk
-- $G$: Migration / transitional cost
-
-Diff line count is **never** an explicit metric. A 2,000-line modular overhaul is favored over a 2-line workaround if it yields higher architectural coherence and lower regression risk.
+Correctness and regression checks are enforced by the hard gates. The ranking does not directly measure maintainability or architectural coherence, and it does not treat line count as a proxy for either. A larger change is not preferred merely for being larger; candidates rank according to their verified outcomes and evidence.
 
 ### 2. The Intervention Ladder (L0–L6)
 
@@ -548,7 +535,7 @@ Test coverage includes:
 - Parallel Git worktree creation, isolation, and safe rollback.
 - Context compactor distillation without evidence loss.
 - Verification promotion ladder state transitions.
-- Pareto frontier calculation and anti-minimal-diff objective scoring.
+- Pareto ranking by measured performance and evidence strength, without diff-size preference.
 - Metamorphic invariant validation and test integrity verification.
 
 ---

@@ -51,25 +51,20 @@ export function evaluateDiagnosticDeltas(
  * Checks whether Candidate A Pareto-dominates Candidate B across multi-objective dimensions.
  * Criteria:
  * 1. Performance Improvement Percent (higher is better)
- * 2. Simplicity / Diff Efficiency (fewer added lines / lower churn is better - Occam's Razor)
- * 3. Empirical Evidence Strength (higher is better - replaces model self-reported confidence)
+ * 2. Empirical Evidence Strength (higher is better - replaces model self-reported confidence)
  * 
  * NOTE: Architectural Intervention Level is NOT an objective to maximize (which would create
- * maximum-intervention bias / gratuitous refactoring). It is retained purely as an exploratory tag.
+ * maximum-intervention bias / gratuitous refactoring). Diff size is not used as a proxy for
+ * simplicity or regression risk; intervention level is retained as an exploratory tag.
  */
 export function dominates(a: VerificationResult, b: VerificationResult): boolean {
   const aPerf = a.softMetrics?.performanceImprovementPercent ?? 0;
   const bPerf = b.softMetrics?.performanceImprovementPercent ?? 0;
-
-  // Diff simplicity: fewer net added lines is simpler and carries less regression risk
-  const aAdded = a.softMetrics?.addedLines ?? a.complexity?.addedLines ?? 0;
-  const bAdded = b.softMetrics?.addedLines ?? b.complexity?.addedLines ?? 0;
-
   const aStrength = a.softMetrics?.evidenceStrength ?? a.softMetrics?.confidenceScore ?? 1.0;
   const bStrength = b.softMetrics?.evidenceStrength ?? b.softMetrics?.confidenceScore ?? 1.0;
 
-  const atLeastAsGood = aPerf >= bPerf && aAdded <= bAdded && aStrength >= bStrength;
-  const strictlyBetter = aPerf > bPerf || aAdded < bAdded || aStrength > bStrength;
+  const atLeastAsGood = aPerf >= bPerf && aStrength >= bStrength;
+  const strictlyBetter = aPerf > bPerf || aStrength > bStrength;
 
   return atLeastAsGood && strictlyBetter;
 }
@@ -188,10 +183,8 @@ export function compareWithPareto(
 
   // 3. Multi-objective Pareto Frontier and Lexicographic Sort
   // Lexicographic ordering principle based on AGENTS.md:
-  // 1. Correctness (Guaranteed by Hard Gates & Test Integrity)
-  // 2. Performance Improvement (Benchmark delta)
-  // 3. Simplicity / Diff Efficiency (Avoid gratuitous bloat: Occam's Razor - clean 30 LOC > rewrite 800 LOC)
-  // 4. Verification Confidence
+  // Correctness is enforced by Hard Gates. Qualified candidates are ordered by measured
+  // performance, evidence strength, verification score, then candidate ID for stable ties.
   const ranked = [...qualified].sort((a, b) => {
     // 3.1 Check Pareto dominance
     if (dominates(a.verification, b.verification)) return -1;
@@ -212,15 +205,13 @@ export function compareWithPareto(
       return strB - strA; // descending
     }
 
-    // Dimension C: Diff Simplicity (fewer added lines is simpler and less risky - Occam's Razor)
-    const linesA = a.verification.softMetrics?.addedLines ?? a.verification.complexity?.addedLines ?? 0;
-    const linesB = b.verification.softMetrics?.addedLines ?? b.verification.complexity?.addedLines ?? 0;
-    if (linesA !== linesB) {
-      return linesA - linesB; // ascending (clean local fix preferred over massive rewrite when effects match)
+    // Dimension C: Verification score (final measured-result tie-break)
+    if (a.verification.score !== b.verification.score) {
+      return b.verification.score - a.verification.score;
     }
 
-    // Dimension D: Fallback to verification score
-    return b.verification.score - a.verification.score;
+    // Dimension D: Stable deterministic tie-break, independent of diff size and intervention level
+    return a.implementation.candidateId.localeCompare(b.implementation.candidateId);
   });
 
 

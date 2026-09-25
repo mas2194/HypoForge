@@ -112,7 +112,7 @@ describe("Pareto & Hard-Gates Evaluation", () => {
     expect(result.disqualified[0].candidate.implementation.candidateId).toBe("cand-local-patch");
   });
 
-  it("should prevent Goodhart bias by prioritizing structural coherence over minimal diff", () => {
+  it("should rank by measured performance without preferring the smaller diff", () => {
     // Candidate A: Root cause architectural solution (Level 3), +25% performance, +120 lines
     const candA = VerificationResultSchema.parse({
       candidateId: "cand-structural",
@@ -165,8 +165,8 @@ describe("Pareto & Hard-Gates Evaluation", () => {
       score: 115,
     });
 
-    // Both pass Hard Gates. Lexicographic order must pick Candidate A (architectural coherence) first,
-    // refusing to capitulate to the "minimal diff" heuristic.
+    // Both pass Hard Gates. Candidate A ranks first because its measured performance is higher.
+    // Its larger diff and intervention level do not directly affect this comparison.
     const result = compareWithPareto(
       [
         { implementation: dummyImplB, verification: candB },
