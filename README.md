@@ -327,9 +327,11 @@ Execution trajectories are automatically recorded and exported in Direct Prefere
 
 Download pre-built standalone executables from GitHub Releases:
 
-#### macOS (Apple Silicon & Intel Universal)
+#### macOS (previous standalone build)
+
+The v0.2.1 release currently contains Linux binaries only. The previous macOS binary is available in v0.2.0 and does not include the v0.2.1 Codex startup fix.
 ```bash
-curl -fsSL https://github.com/mas2194/RefuteFlow/releases/latest/download/rf-darwin-universal.tar.gz | tar -xz
+curl -fsSL https://github.com/mas2194/RefuteFlow/releases/download/v0.2.0/rf-darwin-universal.tar.gz | tar -xz
 chmod +x rf
 sudo mv rf /usr/local/bin/
 

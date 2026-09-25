@@ -330,10 +330,12 @@ MERGED (マージ完了: 1.0)
 
 GitHub Releases から各プラットフォーム向けのスタンドアロン実行ファイルをダウンロードして直接実行できます：
 
-#### macOS（Apple Silicon / Intel Mac Universal）
+#### macOS（旧スタンドアロン版）
+
+v0.2.1 のリリースには Linux バイナリのみ含まれます。以前の macOS バイナリは v0.2.0 から入手できますが、v0.2.1 の Codex 起動修正は含まれていません。
 ```bash
-# 最新の Universal バイナリ（arm64 / x86_64）をダウンロードして展開
-curl -fsSL https://github.com/mas2194/RefuteFlow/releases/latest/download/rf-darwin-universal.tar.gz | tar -xz
+# v0.2.0 の Universal バイナリ（arm64 / x86_64）をダウンロードして展開
+curl -fsSL https://github.com/mas2194/RefuteFlow/releases/download/v0.2.0/rf-darwin-universal.tar.gz | tar -xz
 chmod +x rf
 sudo mv rf /usr/local/bin/
 
