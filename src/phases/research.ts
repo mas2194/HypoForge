@@ -14,6 +14,70 @@ export interface ResearchOptions {
 
 import { EMBEDDED_PROMPTS } from "../prompts/embedded.js";
 
+const RESEARCH_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    problemClassification: { type: "string" },
+    priorArt: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          method: { type: "string" },
+          summary: { type: "string" },
+          outcomes: { type: "string" },
+          limitations: { type: "string" },
+        },
+        required: ["method", "summary", "outcomes", "limitations"],
+        additionalProperties: false,
+      },
+    },
+    sotaApproaches: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          technique: { type: "string" },
+          advantagesOverLegacy: { type: "string" },
+        },
+        required: ["technique", "advantagesOverLegacy"],
+        additionalProperties: false,
+      },
+    },
+    suggestedArchitecturalPatterns: { type: "array", items: { type: "string" } },
+    pitfallsToAvoid: { type: "array", items: { type: "string" } },
+    keyReferences: { type: "array", items: { type: "string" } },
+  },
+  required: [
+    "problemClassification",
+    "priorArt",
+    "sotaApproaches",
+    "suggestedArchitecturalPatterns",
+    "pitfallsToAvoid",
+    "keyReferences",
+  ],
+  additionalProperties: false,
+} as const;
+
+function normalizeResearchBrief(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+
+  const brief = value as Record<string, unknown>;
+  if (!Array.isArray(brief.sotaApproaches)) return value;
+
+  return {
+    ...brief,
+    sotaApproaches: brief.sotaApproaches.map((approach) =>
+      typeof approach === "string"
+        ? {
+            technique: approach,
+            advantagesOverLegacy: "The response did not specify advantages over legacy approaches.",
+          }
+        : approach
+    ),
+  };
+}
+
 export async function runResearchPhase(
   options: ResearchOptions,
   codexManager?: CodexClientManager
@@ -72,11 +136,13 @@ Respond strictly with a valid JSON object matching this schema:
       const thread = codexManager.startWorkerThread({
         workingDirectory: options.repoPath ?? process.cwd(),
       });
-      const turn = await thread.run(`${systemPrompt}\n\n${userPrompt}`);
+      const turn = await thread.run(`${systemPrompt}\n\n${userPrompt}`, {
+        outputSchema: RESEARCH_OUTPUT_SCHEMA,
+      });
       const response = turn.finalResponse ?? "";
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = normalizeResearchBrief(JSON.parse(jsonMatch[0]));
         return ResearchBriefSchema.parse(parsed);
       }
     } catch (err) {
